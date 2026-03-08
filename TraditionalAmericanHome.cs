@@ -39,10 +39,12 @@ namespace SLHouseBuilder
         private const float KNEE_H        = 2.0f;   // half-story knee-wall height
         private const float GARAGE_H      = 3.5f;   // garage wall height
 
-        // Cumulative Z landmarks (all relative to origin.Z = ground)
-        private const float FLOOR1_TOP  = FLOOR1_H;
-        private const float FLOOR2_BASE = FLOOR1_H + FLOOR2_DECK_H;
-        private const float ROOF_BASE   = FLOOR1_H + FLOOR2_DECK_H + KNEE_H;
+        // Cumulative Z landmarks (all relative to origin.Z)
+        // Foundation sits ON origin.Z: bottom = origin.Z, center = origin.Z + FOUNDATION_H/2, top = origin.Z + FOUNDATION_H
+        private const float WALL_BASE   = FOUNDATION_H;                    // walls start at foundation top
+        private const float FLOOR1_TOP  = WALL_BASE + FLOOR1_H;
+        private const float FLOOR2_BASE = WALL_BASE + FLOOR1_H + FLOOR2_DECK_H;
+        private const float ROOF_BASE   = WALL_BASE + FLOOR1_H + FLOOR2_DECK_H + KNEE_H;
 
         private static GridClient client = new GridClient();
         private static Vector3    origin;   // set from avatar position at login
@@ -58,7 +60,7 @@ namespace SLHouseBuilder
         private static readonly Color4 CHIMNEY_COLOR = new Color4(0.60f, 0.35f, 0.28f, 1f);
 
         // ─────────────────────────────────────────────────────────────────────────
-        static void Main(string[] args)
+        static void Main()
         {
             var credsPath = Path.Combine(AppContext.BaseDirectory, "credentials.json");
             if (!File.Exists(credsPath))
@@ -86,7 +88,8 @@ namespace SLHouseBuilder
             }
 
             Thread.Sleep(4000);
-            origin = client.Self.SimPosition;
+            origin = client.Self.SimPosition;  // avatar center = build origin
+
             Console.WriteLine($"[Builder] Build origin: {origin}");
 
             BuildHouse();
@@ -124,16 +127,15 @@ namespace SLHouseBuilder
         {
             Console.WriteLine("[Builder] Foundation…");
 
-            // Center the slab so it's 75% buried, 25% above ground.
-            // Top of slab = +FOUNDATION_H * 0.25 above origin.Z.
-            float slabCenterZ = -FOUNDATION_H * 0.25f;
+            // Foundation bottom sits at origin.Z; center is half its height above that.
+            float slabCenterZ = FOUNDATION_H / 2f;
 
             RezBox(Offset(0,      0,  slabCenterZ), new Vector3(18f, 14f, FOUNDATION_H), FOUNDATION, "Foundation - Main");
             RezBox(Offset(13.5f, -1f, slabCenterZ), new Vector3(9f,  12f, FOUNDATION_H), FOUNDATION, "Foundation - Garage");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        //  FIRST FLOOR WALLS  — bottom at origin.Z (ground)
+        //  FIRST FLOOR WALLS  — bottom at foundation top (WALL_BASE)
         // ─────────────────────────────────────────────────────────────────────────
         static void BuildFirstFloorWalls()
         {
@@ -141,7 +143,7 @@ namespace SLHouseBuilder
 
             float wallH = FLOOR1_H;
             float wallT = 0.2f;
-            float wallZ = wallH / 2f;   // center = half height; bottom = 0 = ground
+            float wallZ = WALL_BASE + wallH / 2f;   // center = WALL_BASE + half height; bottom = WALL_BASE
 
             RezBox(Offset(0,              -7f + wallT / 2f, wallZ), new Vector3(18f,  wallT, wallH), SIDING_COLOR, "Wall - Front");
             RezBox(Offset(0,               7f - wallT / 2f, wallZ), new Vector3(18f,  wallT, wallH), SIDING_COLOR, "Wall - Rear");
@@ -158,7 +160,7 @@ namespace SLHouseBuilder
 
             float garageH = GARAGE_H;
             float wallT   = 0.2f;
-            float wallZ   = garageH / 2f;   // bottom at ground
+            float wallZ   = WALL_BASE + garageH / 2f;   // bottom at foundation top
 
             // Front wall panels (flanking two door openings)
             RezBox(Offset(10.25f, -6.9f, wallZ), new Vector3(1.5f, wallT, garageH), GARAGE_COLOR, "Garage Front - Left Panel");
@@ -166,13 +168,13 @@ namespace SLHouseBuilder
             RezBox(Offset(16.75f, -6.9f, wallZ), new Vector3(1.5f, wallT, garageH), GARAGE_COLOR, "Garage Front - Right Panel");
 
             // Header
-            RezBox(Offset(13.5f, -6.9f, garageH - 0.15f),
+            RezBox(Offset(13.5f, -6.9f, WALL_BASE + garageH - 0.15f),
                    new Vector3(7f, wallT, 0.3f), TRIM_COLOR, "Garage Door Header");
 
             // Sectional door panels
-            RezBox(Offset(11.75f, -6.85f, garageH * 0.43f),
+            RezBox(Offset(11.75f, -6.85f, WALL_BASE + garageH * 0.43f),
                    new Vector3(2.8f, 0.05f, garageH * 0.86f), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Left");
-            RezBox(Offset(15.25f, -6.85f, garageH * 0.43f),
+            RezBox(Offset(15.25f, -6.85f, WALL_BASE + garageH * 0.43f),
                    new Vector3(2.8f, 0.05f, garageH * 0.86f), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Right");
 
             // Rear & side walls
@@ -180,8 +182,8 @@ namespace SLHouseBuilder
             RezBox(Offset(17.9f, -1f,               wallZ), new Vector3(wallT, 12f,  garageH), GARAGE_COLOR, "Garage Side Wall");
             RezBox(Offset( 9.1f, -1f,               wallZ), new Vector3(wallT, 12f,  garageH), SIDING_COLOR, "Garage Interior Shared Wall");
 
-            // Ceiling / loft floor
-            RezBox(Offset(13.5f, -1f, garageH), new Vector3(9f, 12f, 0.2f), FOUNDATION, "Garage Ceiling");
+            // Ceiling / loft floor; center = top-of-walls + half-thickness
+            RezBox(Offset(13.5f, -1f, WALL_BASE + garageH + 0.1f), new Vector3(9f, 12f, 0.2f), FOUNDATION, "Garage Ceiling");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -193,17 +195,19 @@ namespace SLHouseBuilder
 
             float wallT = 0.2f;
 
-            // Floor deck sits on top of first-floor walls
-            RezBox(Offset(0, 0, FLOOR1_TOP), new Vector3(18f, 14f, FLOOR2_DECK_H), FOUNDATION, "Second Floor Deck");
+            // Floor deck sits on top of first-floor walls; center = top-of-walls + half-thickness
+            RezBox(Offset(0, 0, FLOOR1_TOP + FLOOR2_DECK_H / 2f), new Vector3(18f, 14f, FLOOR2_DECK_H), FOUNDATION, "Second Floor Deck");
 
             // Knee walls
             float kneeZ = FLOOR2_BASE + KNEE_H / 2f;
             RezBox(Offset(0, -7f + wallT / 2f, kneeZ), new Vector3(18f,  wallT, KNEE_H), SIDING_COLOR, "Knee Wall - Front");
             RezBox(Offset(0,  7f - wallT / 2f, kneeZ), new Vector3(18f,  wallT, KNEE_H), SIDING_COLOR, "Knee Wall - Rear");
 
-            // Gable end walls (tapered)
-            RezGableWall(Offset(-9f + wallT / 2f, 0, FLOOR2_BASE), new Vector3(wallT, 14f, 3.5f), SIDING_COLOR, "Gable - Left");
-            RezGableWall(Offset( 9f - wallT / 2f, 0, FLOOR2_BASE), new Vector3(wallT, 14f, 3.5f), SIDING_COLOR, "Gable - Right");
+            // Gable end walls (tapered) — center Z must be base + half-height, same as knee walls
+            float gableH = 3.5f;
+            float gableZ  = FLOOR2_BASE + gableH / 2f;
+            RezGableWall(Offset(-9f + wallT / 2f, 0, gableZ), new Vector3(wallT, 14f, gableH), SIDING_COLOR, "Gable - Left");
+            RezGableWall(Offset( 9f - wallT / 2f, 0, gableZ), new Vector3(wallT, 14f, gableH), SIDING_COLOR, "Gable - Right");
 
             // Front dormers
             float dormerZ = FLOOR2_BASE + KNEE_H + 0.5f;
@@ -330,7 +334,7 @@ namespace SLHouseBuilder
         {
             Console.WriteLine("[Builder] Windows…");
 
-            float winZ  = FLOOR1_H * 0.5f;   // window center at mid-wall
+            float winZ  = WALL_BASE + FLOOR1_H * 0.5f;   // window center at mid-wall
             float wallT = 0.22f;
             float winH  = 1.6f;
 
@@ -370,14 +374,14 @@ namespace SLHouseBuilder
 
             float wallT = 0.22f;
             float doorH = 2.4f;
-            float doorZ = doorH / 2f;   // bottom at ground
+            float doorZ = WALL_BASE + doorH / 2f;   // bottom at foundation top
 
             // Front door
             RezBox(Offset(-2.5f, -7f,        doorZ), new Vector3(1.0f,        wallT + 0.02f, doorH),       DOOR_COLOR, "Front Door");
             RezBox(Offset(-2.5f, -7f - 0.04f, doorZ), new Vector3(1.3f,       0.04f,         doorH + 0.4f), TRIM_COLOR, "Front Door Frame");
 
             // Interior garage door
-            RezBox(Offset(9f, -1f, doorH / 2f), new Vector3(0.05f, 0.9f, doorH), DOOR_COLOR, "Garage Interior Door");
+            RezBox(Offset(9f, -1f, WALL_BASE + doorH / 2f), new Vector3(0.05f, 0.9f, doorH), DOOR_COLOR, "Garage Interior Door");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -389,7 +393,7 @@ namespace SLHouseBuilder
 
             float wallH = FLOOR1_H;
             float wallT = 0.15f;
-            float wallZ = wallH / 2f;  // bottom at ground
+            float wallZ = WALL_BASE + wallH / 2f;  // bottom at foundation top
 
             RezBox(Offset( 2f,   0,    wallZ), new Vector3(wallT, 14f, wallH), TRIM_COLOR, "Interior - Center Spine Wall");
             RezBox(Offset(-4f,  -2f,   wallZ), new Vector3(5f,  wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
@@ -398,7 +402,7 @@ namespace SLHouseBuilder
             RezBox(Offset( 5.5f, 0,    wallZ), new Vector3(wallT, 6f,   wallH), TRIM_COLOR, "Interior - Bath-Laundry Wall");
 
             // Staircase landing
-            RezBox(Offset(2.5f, -3f, wallH * 0.3f), new Vector3(2.5f, 3.5f, 0.12f), FOUNDATION, "Staircase Landing");
+            RezBox(Offset(2.5f, -3f, WALL_BASE + wallH * 0.3f), new Vector3(2.5f, 3.5f, 0.12f), FOUNDATION, "Staircase Landing");
         }
 
         // ═════════════════════════════════════════════════════════════════════════
@@ -450,9 +454,20 @@ namespace SLHouseBuilder
 
         static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, string description)
         {
+            uint newLocalID = 0;
+            void onNew(object? s, PrimEventArgs e) { if (e.IsNew) newLocalID = e.Prim.LocalID; }
+
+            client.Objects.ObjectUpdate += onNew;
             client.Self.Movement.SendUpdate();
             client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, pos, size, rot);
             Thread.Sleep((int)DELAY_MS);
+            client.Objects.ObjectUpdate -= onNew;
+
+            if (newLocalID != 0)
+            {
+                client.Objects.SetName(client.Network.CurrentSim, newLocalID, description);
+                client.Objects.SetDescription(client.Network.CurrentSim, newLocalID, description);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────────
