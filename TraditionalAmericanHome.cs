@@ -130,6 +130,7 @@ namespace SLHouseBuilder
             // Foundation bottom sits at origin.Z; center is half its height above that.
             float slabCenterZ = FOUNDATION_H / 2f;
 
+            Console.WriteLine($"[Debug] Foundation center Z = {origin.Z + slabCenterZ:F3}  (bottom={origin.Z:F3}, top={origin.Z + FOUNDATION_H:F3})");
             RezBox(Offset(0,      0,  slabCenterZ), new Vector3(18f, 14f, FOUNDATION_H), FOUNDATION, "Foundation - Main");
             RezBox(Offset(13.5f, -1f, slabCenterZ), new Vector3(9f,  12f, FOUNDATION_H), FOUNDATION, "Foundation - Garage");
         }
@@ -145,6 +146,7 @@ namespace SLHouseBuilder
             float wallT = 0.2f;
             float wallZ = WALL_BASE + wallH / 2f;   // center = WALL_BASE + half height; bottom = WALL_BASE
 
+            Console.WriteLine($"[Debug] Wall center Z = {origin.Z + wallZ:F3}  (bottom={origin.Z + WALL_BASE:F3}, top={origin.Z + WALL_BASE + wallH:F3})");
             RezBox(Offset(0,              -7f + wallT / 2f, wallZ), new Vector3(18f,  wallT, wallH), SIDING_COLOR, "Wall - Front");
             RezBox(Offset(0,               7f - wallT / 2f, wallZ), new Vector3(18f,  wallT, wallH), SIDING_COLOR, "Wall - Rear");
             RezBox(Offset(-9f + wallT / 2f, 0,              wallZ), new Vector3(wallT, 14f,  wallH), SIDING_COLOR, "Wall - Left");
@@ -273,7 +275,6 @@ namespace SLHouseBuilder
                 size:     new Vector3(9f + overhang * 2f, 12f + overhang * 2f, 0.25f),
                 pitchDeg: 15f, forward: true, label: "Garage Roof");
         }
-
         // ─────────────────────────────────────────────────────────────────────────
         //  CHIMNEY
         // ─────────────────────────────────────────────────────────────────────────
@@ -457,9 +458,13 @@ namespace SLHouseBuilder
             uint newLocalID = 0;
             void onNew(object? s, PrimEventArgs e) { if (e.IsNew) newLocalID = e.Prim.LocalID; }
 
+            // AddPrim treats pos as the BOTTOM of the prim, not the center.
+            // Our coordinate system uses centers, so subtract half the height to compensate.
+            Vector3 bottomPos = new(pos.X, pos.Y, pos.Z - size.Z / 2f);
+
             client.Objects.ObjectUpdate += onNew;
             client.Self.Movement.SendUpdate();
-            client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, pos, size, rot);
+            client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, bottomPos, size, rot);
             Thread.Sleep((int)DELAY_MS);
             client.Objects.ObjectUpdate -= onNew;
 
