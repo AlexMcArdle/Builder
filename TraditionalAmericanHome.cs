@@ -46,8 +46,12 @@ namespace SLHouseBuilder
         private const float FLOOR2_BASE = WALL_BASE + FLOOR1_H + FLOOR2_DECK_H;
         private const float ROOF_BASE   = WALL_BASE + FLOOR1_H + FLOOR2_DECK_H + KNEE_H;
 
+        // ── Friend-build settings ─────────────────────────────────────────────────
+        private const string FRIEND_NAME = "wackyiraqi";   // matched case-insensitively
+
         private static GridClient client = new GridClient();
-        private static Vector3    origin;   // set from avatar position at login
+        private static Vector3    origin;      // set from avatar position at login
+        private static float      buildYaw;    // radians — rotates the whole build around Z
 
         // ── Colors ────────────────────────────────────────────────────────────────
         private static readonly Color4 SIDING_COLOR  = new Color4(0.93f, 0.87f, 0.78f, 1f);
@@ -60,8 +64,10 @@ namespace SLHouseBuilder
         private static readonly Color4 CHIMNEY_COLOR = new Color4(0.60f, 0.35f, 0.28f, 1f);
 
         // ─────────────────────────────────────────────────────────────────────────
-        static void Main()
+        static void Main(string[] args)
         {
+            bool atFriend = Array.Exists(args, a => a.Equals("--at-friend", StringComparison.OrdinalIgnoreCase));
+
             var credsPath = Path.Combine(AppContext.BaseDirectory, "credentials.json");
             if (!File.Exists(credsPath))
             {
@@ -88,14 +94,107 @@ namespace SLHouseBuilder
             }
 
             Thread.Sleep(4000);
-            origin = client.Self.SimPosition;  // avatar center = build origin
 
-            Console.WriteLine($"[Builder] Build origin: {origin}");
+            if (atFriend)
+                LocateAndTeleportToFriend();
+            else
+                origin = client.Self.SimPosition;
+
+            Console.WriteLine($"[Builder] Build origin: {origin}  yaw: {buildYaw * 180f / MathF.PI:F1}°");
 
             BuildHouse();
 
             Console.WriteLine("[Builder] Done! Logging out.");
             client.Network.Logout();
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        //  FRIEND LOCATE + TELEPORT
+        // ─────────────────────────────────────────────────────────────────────────
+        static void LocateAndTeleportToFriend()
+        {
+            // Find friend by name
+            UUID friendID = UUID.Zero;
+            foreach (var kvp in client.Friends.FriendList)
+            {
+                if (kvp.Value.Name.Contains(FRIEND_NAME, StringComparison.OrdinalIgnoreCase))
+                {
+                    friendID = kvp.Key;
+                    Console.WriteLine($"[Builder] Found friend: {kvp.Value.Name} ({friendID})");
+                    break;
+                }
+            }
+
+            if (friendID == UUID.Zero)
+            {
+                Console.WriteLine($"[Builder] Friend '{FRIEND_NAME}' not found in friends list. Building at bot position.");
+                origin = client.Self.SimPosition;
+                return;
+            }
+
+            // Request map location (requires map rights on friendship)
+            var located = new ManualResetEventSlim(false);
+            ulong regionHandle = 0;
+            Vector3 friendPos  = Vector3.Zero;
+
+            void onFound(object? s, FriendFoundReplyEventArgs e)
+            {
+                if (e.AgentID != friendID) return;
+                regionHandle = e.RegionHandle;
+                friendPos    = e.Location;
+                located.Set();
+            }
+
+            client.Friends.FriendFoundReply += onFound;
+            client.Friends.MapFriend(friendID);
+
+            if (!located.Wait(8000))
+            {
+                Console.WriteLine("[Builder] Timed out waiting for friend location. Building at bot position.");
+                client.Friends.FriendFoundReply -= onFound;
+                origin = client.Self.SimPosition;
+                return;
+            }
+            client.Friends.FriendFoundReply -= onFound;
+
+            Console.WriteLine($"[Builder] Friend at region {regionHandle}, local pos {friendPos}");
+
+            // Teleport only if we're not already in the same region
+            if (client.Network.CurrentSim.Handle != regionHandle)
+            {
+                if (!client.Self.Teleport(regionHandle, friendPos))
+                {
+                    Console.WriteLine("[Builder] Teleport failed: " + client.Self.TeleportMessage + ". Building at bot position.");
+                    origin = client.Self.SimPosition;
+                    return;
+                }
+                Thread.Sleep(4000);   // wait for sim objects to stream in after teleport
+            }
+            else
+            {
+                Console.WriteLine("[Builder] Already in the same region — skipping teleport.");
+            }
+
+            // Find the friend's avatar — their in-world position has the real Z,
+            // unlike the MapFriend reply which only gives a 2D approximate location.
+            Avatar? friendAvatar = null;
+            foreach (var av in client.Network.CurrentSim.ObjectsAvatars.Values)
+            {
+                if (av.ID == friendID) { friendAvatar = av; break; }
+            }
+
+            if (friendAvatar != null)
+            {
+                origin = friendAvatar.Position;   // precise position including correct Z
+                friendAvatar.Rotation.GetEulerAngles(out _, out _, out buildYaw);
+                Console.WriteLine($"[Builder] Building at friend's position: {origin}  yaw: {buildYaw * 180f / MathF.PI:F1}°");
+            }
+            else
+            {
+                // Fallback: use bot's own position
+                origin = client.Self.SimPosition;
+                Console.WriteLine($"[Builder] Friend avatar not visible in sim — building at bot position: {origin}");
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════════
@@ -205,9 +304,15 @@ namespace SLHouseBuilder
             RezBox(Offset(0, -7f + wallT / 2f, kneeZ), new Vector3(18f,  wallT, KNEE_H), SIDING_COLOR, "Knee Wall - Front");
             RezBox(Offset(0,  7f - wallT / 2f, kneeZ), new Vector3(18f,  wallT, KNEE_H), SIDING_COLOR, "Knee Wall - Rear");
 
-            // Gable end walls (tapered) — center Z must be base + half-height, same as knee walls
-            float gableH = 3.5f;
-            float gableZ  = FLOOR2_BASE + gableH / 2f;
+            // Gable end walls — rectangular base from FLOOR2_BASE to ROOF_BASE, triangle above
+            // The rectangular base matches the knee walls (front/rear) so all sides are flush at ROOF_BASE.
+            float gableBaseZ = FLOOR2_BASE + KNEE_H / 2f;
+            RezBox(Offset(-9f + wallT / 2f, 0, gableBaseZ), new Vector3(wallT, 14f, KNEE_H), SIDING_COLOR, "Gable Base - Left");
+            RezBox(Offset( 9f - wallT / 2f, 0, gableBaseZ), new Vector3(wallT, 14f, KNEE_H), SIDING_COLOR, "Gable Base - Right");
+
+            // Triangle starts at ROOF_BASE (= top of knee walls / base of roof panels)
+            float gableH = 3.1f;   // matches ridge cap position
+            float gableZ = ROOF_BASE + gableH / 2f;
             RezGableWall(Offset(-9f + wallT / 2f, 0, gableZ), new Vector3(wallT, 14f, gableH), SIDING_COLOR, "Gable - Left");
             RezGableWall(Offset( 9f - wallT / 2f, 0, gableZ), new Vector3(wallT, 14f, gableH), SIDING_COLOR, "Gable - Right");
 
@@ -418,7 +523,7 @@ namespace SLHouseBuilder
         static void RezGableWall(Vector3 pos, Vector3 size, Color4 color, string description)
         {
             var prim = BuildPrimData(color);
-            prim.PathTaperX = 1.0f;  // tapers top to a point (triangle gable)
+            prim.PathScaleY = 0.0f;  // collapse Y to 0 at top of path — triangular prism (gable shape)
             RezAndSetPrim(prim, pos, size, Quaternion.Identity, description);
         }
 
@@ -456,7 +561,16 @@ namespace SLHouseBuilder
         static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, string description)
         {
             uint newLocalID = 0;
-            void onNew(object? s, PrimEventArgs e) { if (e.IsNew) newLocalID = e.Prim.LocalID; }
+            var primRezzed = new ManualResetEventSlim(false);
+
+            void onNew(object? s, PrimEventArgs e)
+            {
+                if (e.IsNew) { newLocalID = e.Prim.LocalID; primRezzed.Set(); }
+            }
+
+            // Compose build orientation into every prim rotation
+            if (buildYaw != 0f)
+                rot = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, buildYaw) * rot;
 
             // AddPrim treats pos as the BOTTOM of the prim, not the center.
             // Our coordinate system uses centers, so subtract half the height to compensate.
@@ -465,7 +579,9 @@ namespace SLHouseBuilder
             client.Objects.ObjectUpdate += onNew;
             client.Self.Movement.SendUpdate();
             client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, bottomPos, size, rot);
-            Thread.Sleep((int)DELAY_MS);
+
+            // Wait for the server echo (up to 1s), then unsubscribe before naming
+            primRezzed.Wait(1000);
             client.Objects.ObjectUpdate -= onNew;
 
             if (newLocalID != 0)
@@ -473,13 +589,27 @@ namespace SLHouseBuilder
                 client.Objects.SetName(client.Network.CurrentSim, newLocalID, description);
                 client.Objects.SetDescription(client.Network.CurrentSim, newLocalID, description);
             }
+            else
+            {
+                Console.WriteLine($"[Builder] Warning: no LocalID received for '{description}' — it may appear as 'Object'");
+            }
+
+            Thread.Sleep((int)DELAY_MS);
         }
 
         // ─────────────────────────────────────────────────────────────────────────
         //  COORDINATE HELPER
         // ─────────────────────────────────────────────────────────────────────────
         static Vector3 Offset(float x, float y, float z)
-            => new Vector3(origin.X + x, origin.Y + y, origin.Z + z);
+        {
+            if (buildYaw == 0f)
+                return new Vector3(origin.X + x, origin.Y + y, origin.Z + z);
+            float cos = MathF.Cos(buildYaw);
+            float sin = MathF.Sin(buildYaw);
+            return new Vector3(origin.X + x * cos - y * sin,
+                               origin.Y + x * sin + y * cos,
+                               origin.Z + z);
+        }
 
         // ─────────────────────────────────────────────────────────────────────────
         //  LOGIN CALLBACKS
