@@ -17,6 +17,7 @@
 //   always kisses the ground regardless of any SimPosition offset.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -49,9 +50,10 @@ namespace SLHouseBuilder
         // ── Friend-build settings ─────────────────────────────────────────────────
         private const string FRIEND_NAME = "wackyiraqi";   // matched case-insensitively
 
-        private static GridClient client = new GridClient();
-        private static Vector3    origin;      // set from avatar position at login
-        private static float      buildYaw;    // radians — rotates the whole build around Z
+        private static GridClient  client = new GridClient();
+        private static Vector3     origin;         // set from avatar position at login
+        private static float       buildYaw;       // radians — rotates the whole build around Z
+        private static List<uint>  builtPrimIDs = new();   // collected as prims are rezzed
 
         // ── Colors ────────────────────────────────────────────────────────────────
         private static readonly Color4 SIDING_COLOR  = new Color4(0.93f, 0.87f, 0.78f, 1f);
@@ -103,9 +105,29 @@ namespace SLHouseBuilder
             Console.WriteLine($"[Builder] Build origin: {origin}  yaw: {buildYaw * 180f / MathF.PI:F1}°");
 
             BuildHouse();
+            LinkBuiltPrims();
 
             Console.WriteLine("[Builder] Done! Logging out.");
             client.Network.Logout();
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        //  LINK ALL PRIMS  — foundation (first rezzed) becomes the root
+        // ─────────────────────────────────────────────────────────────────────────
+        static void LinkBuiltPrims()
+        {
+            if (builtPrimIDs.Count < 2)
+            {
+                Console.WriteLine("[Builder] Not enough prims to link.");
+                return;
+            }
+
+            Console.WriteLine($"[Builder] Linking {builtPrimIDs.Count} prims into one linkset…");
+            // SL's ObjectLink packet treats the first ID in the list as the root prim.
+            // builtPrimIDs[0] is the main foundation slab — the natural root.
+            client.Objects.LinkPrims(client.Network.CurrentSim, builtPrimIDs);
+            Thread.Sleep(1000);
+            Console.WriteLine("[Builder] Linkset complete.");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -586,6 +608,7 @@ namespace SLHouseBuilder
 
             if (newLocalID != 0)
             {
+                builtPrimIDs.Add(newLocalID);
                 client.Objects.SetName(client.Network.CurrentSim, newLocalID, description);
                 client.Objects.SetDescription(client.Network.CurrentSim, newLocalID, description);
             }
