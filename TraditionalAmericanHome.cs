@@ -4,8 +4,9 @@
 //
 // HOW TO USE:
 //   1. Add OpenMetaverse.dll (LibreMetaverse) as a reference in your project.
-//   2. Fill in your SL bot credentials below.
+//   2. Fill in your SL bot credentials in the credentials file.
 //   3. Stand your bot avatar at the desired build origin in-world.
+//      (Optional) Set a FriendName in the credentials file and run with `dotnet run -- --at-friend` to build at their location instead of the bot's current position.
 //   4. Run. The house will be built relative to the bot's current position.
 //
 // PRIM BUDGET: ~85 prims
@@ -270,21 +271,14 @@ namespace SLHouseBuilder
 
             Console.WriteLine($"[Builder] Friend at region {regionHandle}, local pos {friendPos}");
 
-            // Teleport only if we're not already in the same region
-            if (client.Network.CurrentSim.Handle != regionHandle)
+            // Teleport to friend (works for both cross-sim and same-sim)
+            if (!client.Self.Teleport(regionHandle, friendPos))
             {
-                if (!client.Self.Teleport(regionHandle, friendPos))
-                {
-                    Console.WriteLine("[Builder] Teleport failed: " + client.Self.TeleportMessage + ". Building at bot position.");
-                    origin = client.Self.SimPosition;
-                    return;
-                }
-                Thread.Sleep(4000);   // wait for sim objects to stream in after teleport
+                Console.WriteLine("[Builder] Teleport failed: " + client.Self.TeleportMessage + ". Building at bot position.");
+                origin = client.Self.SimPosition;
+                return;
             }
-            else
-            {
-                Console.WriteLine("[Builder] Already in the same region — skipping teleport.");
-            }
+            Thread.Sleep(4000);   // wait for sim objects to stream in after teleport
 
             // Find the friend's avatar — their in-world position has the real Z,
             // unlike the MapFriend reply which only gives a 2D approximate location.
@@ -544,7 +538,7 @@ namespace SLHouseBuilder
             for (int i = 0; i < 3; i++)
             {
                 float stepZ = i * 0.1f;
-                RezBox(Offset(-2.5f, -9.9f + i * 0.45f, stepZ),
+                RezBox(Offset(-2.5f, -11.125f + i * 0.45f, stepZ),
                        new Vector3(4.5f - i * 0.4f, 0.45f, 0.15f), FOUNDATION, $"Porch Step {i + 1}");
             }
 
@@ -554,13 +548,14 @@ namespace SLHouseBuilder
                 size:     new Vector3(5.6f, 3.6f, 0.18f),
                 pitchDeg: 14f, forward: true, label: "Porch Roof");
 
-            // Columns
-            float[] colX = { -4.5f, -3.0f, -2.0f, -0.5f };
+            // Columns — at outer edge of deck
+            float[] colX = { -4.5f, -3.0f, -1.5f, 0.0f };
             foreach (float cx in colX)
-                RezBox(Offset(cx, -7.9f, columnZ), new Vector3(0.2f, 0.2f, columnH), TRIM_COLOR, "Porch Column");
+                RezBox(Offset(cx, -9.5f, columnZ), new Vector3(0.2f, 0.2f, columnH), TRIM_COLOR, "Porch Column");
 
-            // Railing
-            RezBox(Offset(-2.5f, -7.9f, deckTop + 0.9f), new Vector3(5f, 0.05f, 0.1f), TRIM_COLOR, "Porch Railing");
+            // Railing — two pieces with a gap at center for the staircase (top step is 3.7m wide)
+            RezBox(Offset(-4.675f, -9.8f, deckTop + 0.45f), new Vector3(0.65f, 0.05f, 0.9f), TRIM_COLOR, "Porch Railing Left");
+            RezBox(Offset(-0.325f, -9.8f, deckTop + 0.45f), new Vector3(0.65f, 0.05f, 0.9f), TRIM_COLOR, "Porch Railing Right");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -571,34 +566,33 @@ namespace SLHouseBuilder
             Console.WriteLine("[Builder] Windows…");
 
             float winZ  = WALL_BASE + FLOOR1_H * 0.5f;   // window center at mid-wall
-            float wallT = 0.22f;
             float winH  = 1.6f;
 
             // Front facade
-            RezWindow(    Offset(-5.5f, -7f, winZ), wallT, 2.2f, winH, "Bay Window Left");
-            RezWindow(    Offset(-7.0f, -7f, winZ), wallT, 1.0f, winH, "Bay Window Right");
-            RezWindow(    Offset( 2.5f, -7f, winZ), wallT, 1.8f, winH, "Front Right Window");
+            RezWindow(    Offset(-5.5f, -7f, winZ), 2.2f, winH, "Bay Window Left");
+            RezWindow(    Offset(-7.0f, -7f, winZ), 1.0f, winH, "Bay Window Right");
+            RezWindow(    Offset( 2.5f, -7f, winZ), 1.8f, winH, "Front Right Window");
 
             // Rear facade
-            RezWindow(    Offset(-5f,  7f, winZ), wallT, 2.0f, winH, "Rear Left Window");
-            RezWindow(    Offset( 0f,  7f, winZ), wallT, 2.0f, winH, "Rear Center Window");
-            RezWindow(    Offset( 5f,  7f, winZ), wallT, 2.0f, winH, "Rear Right Window");
+            RezWindow(    Offset(-5f,  7f, winZ), 2.0f, winH, "Rear Left Window");
+            RezWindow(    Offset( 0f,  7f, winZ), 2.0f, winH, "Rear Center Window");
+            RezWindow(    Offset( 5f,  7f, winZ), 2.0f, winH, "Rear Right Window");
 
             // Left side
-            RezWindowSide(Offset(-9f, -3f, winZ), wallT, 1.4f, winH, "Left Side Window 1");
-            RezWindowSide(Offset(-9f,  3f, winZ), wallT, 1.4f, winH, "Left Side Window 2");
+            RezWindowSide(Offset(-9f, -3f, winZ), 1.4f, winH, "Left Side Window 1");
+            RezWindowSide(Offset(-9f,  3f, winZ), 1.4f, winH, "Left Side Window 2");
         }
 
-        static void RezWindow(Vector3 center, float wallT, float w, float h, string label)
+        static void RezWindow(Vector3 center, float w, float h, string label)
         {
-            RezBox(new Vector3(center.X, center.Y - wallT / 2f - 0.01f, center.Z), new Vector3(w,       0.05f, h),       WINDOW_COLOR, label + " Glass");
-            RezBox(new Vector3(center.X, center.Y - wallT / 2f - 0.03f, center.Z), new Vector3(w + 0.2f, 0.04f, h + 0.2f), TRIM_COLOR, label + " Trim");
+            RezBox(new Vector3(center.X, center.Y,         center.Z), new Vector3(w,        0.05f, h),        WINDOW_COLOR, label + " Glass");
+            RezBox(new Vector3(center.X, center.Y - 0.02f, center.Z), new Vector3(w + 0.2f, 0.04f, h + 0.2f), TRIM_COLOR,  label + " Trim");
         }
 
-        static void RezWindowSide(Vector3 center, float wallT, float w, float h, string label)
+        static void RezWindowSide(Vector3 center, float w, float h, string label)
         {
-            RezBox(new Vector3(center.X - wallT / 2f - 0.01f, center.Y, center.Z), new Vector3(0.05f, w,       h),       WINDOW_COLOR, label + " Glass");
-            RezBox(new Vector3(center.X - wallT / 2f - 0.03f, center.Y, center.Z), new Vector3(0.04f, w + 0.2f, h + 0.2f), TRIM_COLOR, label + " Trim");
+            RezBox(new Vector3(center.X,         center.Y, center.Z), new Vector3(0.05f, w,        h),        WINDOW_COLOR, label + " Glass");
+            RezBox(new Vector3(center.X - 0.02f, center.Y, center.Z), new Vector3(0.04f, w + 0.2f, h + 0.2f), TRIM_COLOR,  label + " Trim");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
