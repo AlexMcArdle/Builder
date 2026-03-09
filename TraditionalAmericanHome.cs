@@ -48,7 +48,7 @@ namespace SLHouseBuilder
         private const float ROOF_BASE   = WALL_BASE + FLOOR1_H + FLOOR2_DECK_H + KNEE_H;
 
         // ── Friend-build settings ─────────────────────────────────────────────────
-        private const string FRIEND_NAME = "wackyiraqi";   // matched case-insensitively
+        private static string friendName = "";   // loaded from credentials.json "FriendName"; empty = build at bot position
 
         // ── Pending-prim tracking ─────────────────────────────────────────────────
         // Prims are rezzed as fast as the rate-limit allows.  Echo packets are
@@ -95,6 +95,9 @@ namespace SLHouseBuilder
             string firstName = creds.GetProperty("FirstName").GetString()!;
             string lastName  = creds.GetProperty("LastName").GetString()!;
             string password  = creds.GetProperty("Password").GetString()!;
+            if (creds.TryGetProperty("FriendName", out var fnProp))
+                friendName = fnProp.GetString() ?? "";
+
 
             client.Settings.LOGIN_SERVER = LOGINURI;
             client.Network.LoginProgress += OnLoginProgress;
@@ -111,10 +114,14 @@ namespace SLHouseBuilder
 
             Thread.Sleep(4000);
 
-            if (atFriend)
+            if (atFriend && !string.IsNullOrWhiteSpace(friendName))
                 LocateAndTeleportToFriend();
             else
+            {
+                if (atFriend)
+                    Console.WriteLine("[Builder] --at-friend specified but FriendName is not set in credentials.json. Building at bot position.");
                 origin = client.Self.SimPosition;
+            }
 
             Console.WriteLine($"[Builder] Build origin: {origin}  yaw: {buildYaw * 180f / MathF.PI:F1}°");
 
@@ -221,7 +228,7 @@ namespace SLHouseBuilder
             UUID friendID = UUID.Zero;
             foreach (var kvp in client.Friends.FriendList)
             {
-                if (kvp.Value.Name.Contains(FRIEND_NAME, StringComparison.OrdinalIgnoreCase))
+                if (kvp.Value.Name.Contains(friendName, StringComparison.OrdinalIgnoreCase))
                 {
                     friendID = kvp.Key;
                     Console.WriteLine($"[Builder] Found friend: {kvp.Value.Name} ({friendID})");
@@ -231,7 +238,7 @@ namespace SLHouseBuilder
 
             if (friendID == UUID.Zero)
             {
-                Console.WriteLine($"[Builder] Friend '{FRIEND_NAME}' not found in friends list. Building at bot position.");
+                Console.WriteLine($"[Builder] Friend '{friendName}' not found in friends list. Building at bot position.");
                 origin = client.Self.SimPosition;
                 return;
             }
@@ -367,28 +374,31 @@ namespace SLHouseBuilder
             float wallT   = 0.2f;
             float wallZ   = WALL_BASE + garageH / 2f;   // bottom at foundation top
 
-            // Front wall panels (flanking two door openings)
-            RezBox(Offset(10.25f, -6.9f, wallZ), new Vector3(1.5f, wallT, garageH), GARAGE_COLOR, "Garage Front - Left Panel");
-            RezBox(Offset(13.5f,  -6.9f, wallZ), new Vector3(0.5f, wallT, garageH), GARAGE_COLOR, "Garage Front - Center Post");
-            RezBox(Offset(16.75f, -6.9f, wallZ), new Vector3(1.5f, wallT, garageH), GARAGE_COLOR, "Garage Front - Right Panel");
+            // Front wall — layout around center X=13.5 (garage is X=9..18):
+            //   Left edge 1.0m | Left opening 3.15m | Center post 0.5m | Right opening 3.15m | Right edge 1.0m
+            RezBox(Offset( 9.6f, -6.9f, wallZ), new Vector3(1.0f, wallT, garageH), GARAGE_COLOR, "Garage Front - Left Edge");
+            RezBox(Offset(13.5f, -6.9f, wallZ), new Vector3(0.5f, wallT, garageH), GARAGE_COLOR, "Garage Front - Center Post");
+            RezBox(Offset(17.4f, -6.9f, wallZ), new Vector3(1.0f, wallT, garageH), GARAGE_COLOR, "Garage Front - Right Edge");
 
-            // Header
+            // Header spanning both door openings
             RezBox(Offset(13.5f, -6.9f, WALL_BASE + garageH - 0.15f),
-                   new Vector3(7f, wallT, 0.3f), TRIM_COLOR, "Garage Door Header");
+                   new Vector3(7.8f, wallT, 0.3f), TRIM_COLOR, "Garage Door Header");
 
-            // Sectional door panels
-            RezBox(Offset(11.75f, -6.85f, WALL_BASE + garageH * 0.43f),
-                   new Vector3(2.8f, 0.05f, garageH * 0.86f), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Left");
-            RezBox(Offset(15.25f, -6.85f, WALL_BASE + garageH * 0.43f),
-                   new Vector3(2.8f, 0.05f, garageH * 0.86f), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Right");
+            // Sectional door panels — centered in their openings
+            // Left opening:  X = 10.1 to 13.25  → center 11.675
+            // Right opening: X = 13.75 to 16.9  → center 15.325
+            float doorCenterZ = WALL_BASE + garageH * 0.43f;
+            float doorH       = garageH * 0.86f;
+            RezBox(Offset(11.675f, -6.85f, doorCenterZ), new Vector3(3.1f, 0.05f, doorH), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Left");
+            RezBox(Offset(15.325f, -6.85f, doorCenterZ), new Vector3(3.1f, 0.05f, doorH), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Right");
 
             // Rear & side walls
             RezBox(Offset(13.5f,  5f - wallT / 2f, wallZ), new Vector3(9f,   wallT, garageH), GARAGE_COLOR, "Garage Rear Wall");
             RezBox(Offset(17.9f, -1f,               wallZ), new Vector3(wallT, 12f,  garageH), GARAGE_COLOR, "Garage Side Wall");
             RezBox(Offset( 9.1f, -1f,               wallZ), new Vector3(wallT, 12f,  garageH), SIDING_COLOR, "Garage Interior Shared Wall");
 
-            // Ceiling / loft floor; center = top-of-walls + half-thickness
-            RezBox(Offset(13.5f, -1f, WALL_BASE + garageH + 0.1f), new Vector3(9f, 12f, 0.2f), FOUNDATION, "Garage Ceiling");
+            // Ceiling — tucked inside the walls so it doesn't poke above the eaves
+            RezBox(Offset(13.5f, -1f, WALL_BASE + garageH - 0.15f), new Vector3(9f, 12f, 0.2f), FOUNDATION, "Garage Ceiling");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -471,18 +481,34 @@ namespace SLHouseBuilder
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        //  GARAGE ROOF
+        //  GARAGE ROOF  — gable matching the main house, ridge along X
         // ─────────────────────────────────────────────────────────────────────────
         static void BuildGarageRoof()
         {
             Console.WriteLine("[Builder] Garage roof…");
 
-            float overhang = 0.4f;
+            float overhang  = 0.4f;
+            float pitchDeg  = 15f;
+            float halfSpan  = 6f;    // half of 12m garage depth (ridge at center Y=-1)
+            float roofBaseZ = WALL_BASE + GARAGE_H;   // top of garage walls = 4.0m
+            float riseZ     = halfSpan * MathF.Tan(pitchDeg * MathF.PI / 180f);   // ~1.61m
+            float panelCtrZ = roofBaseZ + riseZ / 2f;
 
+            // Front panel (eave at Y=-7, ridge at Y=-1)
             RezTiltedRoofPanel(
-                center:   Offset(13.5f, -1f, GARAGE_H + 0.6f),
-                size:     new Vector3(9f + overhang * 2f, 12f + overhang * 2f, 0.25f),
-                pitchDeg: 15f, forward: true, label: "Garage Roof");
+                center:   Offset(13.5f, -1f - halfSpan / 2f, panelCtrZ),
+                size:     new Vector3(9f + overhang * 2f, halfSpan + overhang, 0.25f),
+                pitchDeg: pitchDeg, forward: true, label: "Garage Roof - Front");
+
+            // Rear panel (ridge at Y=-1, eave at Y=+5)
+            RezTiltedRoofPanel(
+                center:   Offset(13.5f, -1f + halfSpan / 2f, panelCtrZ),
+                size:     new Vector3(9f + overhang * 2f, halfSpan + overhang, 0.25f),
+                pitchDeg: pitchDeg, forward: false, label: "Garage Roof - Rear");
+
+            // Ridge cap
+            RezBox(Offset(13.5f, -1f, roofBaseZ + riseZ),
+                   new Vector3(9f + overhang * 2f, 0.4f, 0.25f), ROOF_COLOR, "Garage Ridge Cap");
         }
         // ─────────────────────────────────────────────────────────────────────────
         //  CHIMNEY
