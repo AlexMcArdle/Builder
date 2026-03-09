@@ -50,10 +50,24 @@ namespace SLHouseBuilder
         // ── Friend-build settings ─────────────────────────────────────────────────
         private const string FRIEND_NAME = "wackyiraqi";   // matched case-insensitively
 
-        private static GridClient  client = new GridClient();
-        private static Vector3     origin;         // set from avatar position at login
-        private static float       buildYaw;       // radians — rotates the whole build around Z
-        private static List<uint>  builtPrimIDs = new();   // collected as prims are rezzed
+        // ── Pending-prim tracking ─────────────────────────────────────────────────
+        // Prims are rezzed as fast as the rate-limit allows.  Echo packets are
+        // matched back to pending entries by center-position + scale, then names
+        // and linking happen in one pass after the build loop finishes.
+        private class PendingPrim
+        {
+            public readonly Vector3 Center;       // world-space center (what server echoes)
+            public readonly Vector3 Scale;
+            public readonly string  Description;
+            public uint LocalID;                  // 0 until echo arrives
+            public PendingPrim(Vector3 c, Vector3 s, string d) { Center = c; Scale = s; Description = d; }
+        }
+
+        private static GridClient         client       = new GridClient();
+        private static Vector3            origin;       // set from avatar position at login
+        private static float              buildYaw;     // radians — rotates the whole build around Z
+        private static List<PendingPrim>  pendingPrims = new();
+        private static readonly object    primLock     = new();
 
         // ── Colors ────────────────────────────────────────────────────────────────
         private static readonly Color4 SIDING_COLOR  = new Color4(0.93f, 0.87f, 0.78f, 1f);
@@ -104,29 +118,97 @@ namespace SLHouseBuilder
 
             Console.WriteLine($"[Builder] Build origin: {origin}  yaw: {buildYaw * 180f / MathF.PI:F1}°");
 
+            client.Objects.ObjectUpdate += OnPrimEcho;
             BuildHouse();
-            LinkBuiltPrims();
+            FinalizeAndLink();   // waits for echoes, names everything, then links
 
             Console.WriteLine("[Builder] Done! Logging out.");
             client.Network.Logout();
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        //  LINK ALL PRIMS  — foundation (first rezzed) becomes the root
+        //  ECHO HANDLER  — matches incoming ObjectUpdate packets to pending prims
         // ─────────────────────────────────────────────────────────────────────────
-        static void LinkBuiltPrims()
+        static void OnPrimEcho(object? s, PrimEventArgs e)
         {
-            if (builtPrimIDs.Count < 2)
+            lock (primLock)
             {
-                Console.WriteLine("[Builder] Not enough prims to link.");
-                return;
+                foreach (var p in pendingPrims)
+                {
+                    if (p.LocalID == 0 &&
+                        Vector3.Distance(e.Prim.Position, p.Center) < 0.3f &&
+                        Vector3.Distance(e.Prim.Scale,    p.Scale)  < 0.1f)
+                    {
+                        p.LocalID = e.Prim.LocalID;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        //  FINALIZE  — wait for all echoes, rename every prim, then link
+        // ─────────────────────────────────────────────────────────────────────────
+        static void FinalizeAndLink()
+        {
+            // Wait until every prim has been matched or we hit the timeout
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            while (DateTime.UtcNow < deadline)
+            {
+                lock (primLock)
+                {
+                    if (pendingPrims.TrueForAll(p => p.LocalID != 0)) break;
+                }
+                Thread.Sleep(200);
             }
 
-            Console.WriteLine($"[Builder] Linking {builtPrimIDs.Count} prims into one linkset…");
-            // SL's ObjectLink packet treats the first ID in the list as the root prim.
-            // builtPrimIDs[0] is the main foundation slab — the natural root.
-            client.Objects.LinkPrims(client.Network.CurrentSim, builtPrimIDs);
-            Thread.Sleep(1000);
+            client.Objects.ObjectUpdate -= OnPrimEcho;
+
+            List<uint> ids;
+            lock (primLock)
+            {
+                int matched = pendingPrims.FindAll(p => p.LocalID != 0).Count;
+                Console.WriteLine($"[Builder] Reconciled {matched}/{pendingPrims.Count} prims.");
+
+                foreach (var p in pendingPrims)
+                {
+                    if (p.LocalID == 0)
+                    {
+                        Console.WriteLine($"[Builder] Warning: '{p.Description}' was not matched — skipping rename.");
+                        continue;
+                    }
+                    client.Objects.SetName(client.Network.CurrentSim, p.LocalID, p.Description);
+                    client.Objects.SetDescription(client.Network.CurrentSim, p.LocalID, p.Description);
+                }
+
+                // Foundation is pendingPrims[0] — first in list = root in SL's ObjectLink packet
+                ids = pendingPrims.FindAll(p => p.LocalID != 0).ConvertAll(p => p.LocalID);
+            }
+
+            if (ids.Count < 2) { Console.WriteLine("[Builder] Not enough matched prims to link."); return; }
+
+            uint rootID = ids[0];   // Foundation — first rezzed, root of the linkset
+
+            // Select all prims (SL requires objects to be selected before linking)
+            client.Objects.SelectObjects(client.Network.CurrentSim, ids.ToArray());
+            Thread.Sleep(500);
+
+            // Watch for the link confirmation: the server sends ObjectUpdate packets
+            // for the newly linked prims, with ParentID set to the root's LocalID.
+            var linkConfirmed = new ManualResetEventSlim(false);
+            void onLink(object? s, PrimEventArgs e)
+            {
+                if (e.Prim.LocalID == rootID || e.Prim.ParentID == rootID)
+                    linkConfirmed.Set();
+            }
+
+            Console.WriteLine($"[Builder] Linking {ids.Count} prims (root: Foundation)…");
+            client.Objects.ObjectUpdate += onLink;
+            client.Objects.LinkPrims(client.Network.CurrentSim, ids);
+            linkConfirmed.Wait(10000);   // wait up to 10s for server confirmation
+            client.Objects.ObjectUpdate -= onLink;
+
+            client.Objects.DeselectObjects(client.Network.CurrentSim, ids.ToArray());
             Console.WriteLine("[Builder] Linkset complete.");
         }
 
@@ -582,14 +664,6 @@ namespace SLHouseBuilder
 
         static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, string description)
         {
-            uint newLocalID = 0;
-            var primRezzed = new ManualResetEventSlim(false);
-
-            void onNew(object? s, PrimEventArgs e)
-            {
-                if (e.IsNew) { newLocalID = e.Prim.LocalID; primRezzed.Set(); }
-            }
-
             // Compose build orientation into every prim rotation
             if (buildYaw != 0f)
                 rot = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, buildYaw) * rot;
@@ -598,26 +672,13 @@ namespace SLHouseBuilder
             // Our coordinate system uses centers, so subtract half the height to compensate.
             Vector3 bottomPos = new(pos.X, pos.Y, pos.Z - size.Z / 2f);
 
-            client.Objects.ObjectUpdate += onNew;
+            // Register the expected center + scale so OnPrimEcho can match the server reply.
+            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description)); }
+
             client.Self.Movement.SendUpdate();
             client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, bottomPos, size, rot);
 
-            // Wait for the server echo (up to 1s), then unsubscribe before naming
-            primRezzed.Wait(1000);
-            client.Objects.ObjectUpdate -= onNew;
-
-            if (newLocalID != 0)
-            {
-                builtPrimIDs.Add(newLocalID);
-                client.Objects.SetName(client.Network.CurrentSim, newLocalID, description);
-                client.Objects.SetDescription(client.Network.CurrentSim, newLocalID, description);
-            }
-            else
-            {
-                Console.WriteLine($"[Builder] Warning: no LocalID received for '{description}' — it may appear as 'Object'");
-            }
-
-            Thread.Sleep((int)DELAY_MS);
+            Thread.Sleep((int)DELAY_MS);   // rate-limit only — no waiting for echo
         }
 
         // ─────────────────────────────────────────────────────────────────────────
