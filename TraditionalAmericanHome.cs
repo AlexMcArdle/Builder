@@ -64,9 +64,10 @@ namespace SLHouseBuilder
             public readonly Color4  Color;
             public readonly bool    IsLight;
             public readonly float   Glow;
+            public readonly UUID?   TextureUUID;  // if set, applied as face texture instead of blank
             public uint LocalID;                  // 0 until echo arrives
-            public PendingPrim(Vector3 c, Vector3 s, string d, Color4 color, bool isLight = false, float glow = 0f)
-                { Center = c; Scale = s; Description = d; Color = color; IsLight = isLight; Glow = glow; }
+            public PendingPrim(Vector3 c, Vector3 s, string d, Color4 color, bool isLight = false, float glow = 0f, UUID? textureUUID = null)
+                { Center = c; Scale = s; Description = d; Color = color; IsLight = isLight; Glow = glow; TextureUUID = textureUUID; }
         }
 
         private static GridClient         client       = new GridClient();
@@ -200,10 +201,10 @@ namespace SLHouseBuilder
                     Thread.Sleep(50);
 
                     // Apply color/alpha/glow/fullbright — BuildPrimData doesn't set textures, so we do it here
-                    var te = new Primitive.TextureEntry(UUID.Zero);
+                    var te = new Primitive.TextureEntry(p.TextureUUID ?? UUID.Zero);
                     te.DefaultTexture.RGBA = p.Color;
                     if (p.Glow > 0f)  te.DefaultTexture.Glow       = p.Glow;
-                    if (p.IsLight)    te.DefaultTexture.Fullbright  = true;
+                    if (p.IsLight || p.TextureUUID.HasValue) te.DefaultTexture.Fullbright = true;
                     client.Objects.SetTextures(client.Network.CurrentSim, p.LocalID, te);
                     Thread.Sleep(100);
 
@@ -378,6 +379,7 @@ namespace SLHouseBuilder
             BuildInteriorWalls();
             BuildStaircase();
             BuildCeilingLights();
+            BuildSign();
 
             Console.WriteLine("[Builder] === Build complete! ===");
         }
@@ -911,6 +913,29 @@ namespace SLHouseBuilder
         }
 
         // ─────────────────────────────────────────────────────────────────────────
+        static void BuildSign()
+        {
+            Console.WriteLine("[Builder] Sign…");
+
+            var signTex   = new UUID("87fa5aa4-17dd-7e9a-e5e0-6ba9b3f2d26f");
+            var signColor = new Color4(1.0f, 1.0f, 1.0f, 1.0f);   // white tint (shows texture as-is)
+
+            // Hang a big banner on the front wall, right section (X≈3.9→9.0, Col 4).
+            // Sign face sits just proud of the wall surface (Y = -7.02).
+            float signW = 4.5f;   // width
+            float signH = 2.0f;   // height
+            float signD = 0.04f;  // depth (thin panel)
+            float signX = 6.45f;
+            float signY = -(7.0f + signD / 2f);
+            float signZ = WALL_BASE + FLOOR1_H * 0.55f;   // slightly above mid-wall
+
+            var cd = BuildPrimData(signColor);
+            RezAndSetPrim(cd, Offset(signX, signY, signZ), new Vector3(signW, signD, signH),
+                          Quaternion.Identity, signColor, "Sign - Vibe Coded House",
+                          isLight: true, glow: 0.08f, textureUUID: signTex);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
         //  SETTLED POSITION  — polls SimPosition until Z > 1 m (terrain level)
         //  After login or a failed/timed-out teleport the client can return Z=0
         //  before the first AgentUpdate echo arrives from the sim.  All prims are
@@ -991,7 +1016,7 @@ namespace SLHouseBuilder
             return cd;
         }
 
-        static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, Color4 color, string description, bool isLight = false, float glow = 0f)
+        static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, Color4 color, string description, bool isLight = false, float glow = 0f, UUID? textureUUID = null)
         {
             // Compose build orientation into every prim rotation
             if (buildYaw != 0f)
@@ -1002,7 +1027,7 @@ namespace SLHouseBuilder
             Vector3 bottomPos = new(pos.X, pos.Y, pos.Z - size.Z / 2f);
 
             // Register the expected center + scale so OnPrimEcho can match the server reply.
-            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description, color, isLight, glow)); }
+            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description, color, isLight, glow, textureUUID)); }
 
             client.Self.Movement.SendUpdate();
             client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, bottomPos, size, rot);
