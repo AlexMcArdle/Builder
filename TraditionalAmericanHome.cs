@@ -705,9 +705,9 @@ namespace SLHouseBuilder
 
             float chimH = ROOF_BASE + 4.5f;   // starts at ground, pokes above ridge
 
-            RezBox(Offset(-6f, 3f, chimH / 2f),
+            RezBox(Offset(-6f, 4.2f, chimH / 2f),
                    new Vector3(1.0f, 1.0f, chimH), CHIMNEY_COLOR, "Chimney Stack");
-            RezBox(Offset(-6f, 3f, chimH + 0.1f),
+            RezBox(Offset(-6f, 4.2f, chimH + 0.1f),
                    new Vector3(1.3f, 1.3f, 0.2f), new Color4(0.3f, 0.3f, 0.3f, 1f), "Chimney Cap");
         }
 
@@ -847,7 +847,7 @@ namespace SLHouseBuilder
             RezBox(Offset( 2f,   3.125f, wallZ), new Vector3(wallT, 7.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Rear");
             RezBox(Offset(-4f,  -2f,     wallZ), new Vector3(4.6f, wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
             RezBox(Offset( 5f,   2f,     wallZ), new Vector3(6.6f, wallT,  wallH), TRIM_COLOR, "Interior - Kitchen Rear");
-            RezBox(Offset(-4.5f, 3.5f,   wallZ), new Vector3(8.6f, wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
+            RezBox(Offset(-4.5f, 4.2f,   wallZ), new Vector3(8.6f, wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
             RezBox(Offset( 5.5f, 0,      wallZ), new Vector3(wallT, 5.6f,  wallH), TRIM_COLOR, "Interior - Bath-Laundry Wall");
         }
 

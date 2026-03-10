@@ -1,0 +1,18 @@
+# Binary files — prevent diff/merge corruption
+*.dll    binary
+*.dylib  binary
+*.so     binary
+*.exe    binary
+*.pdb    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.bmp    binary
+*.tga    binary
+*.ico    binary
+*.svg    text
+*.nupkg  binary
+*.zip    binary
+*.tar    binary
+*.gz     binary
