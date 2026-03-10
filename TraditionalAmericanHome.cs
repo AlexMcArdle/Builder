@@ -62,9 +62,11 @@ namespace SLHouseBuilder
             public readonly Vector3 Scale;
             public readonly string  Description;
             public readonly Color4  Color;
+            public readonly bool    IsLight;
+            public readonly float   Glow;
             public uint LocalID;                  // 0 until echo arrives
-            public PendingPrim(Vector3 c, Vector3 s, string d, Color4 color)
-                { Center = c; Scale = s; Description = d; Color = color; }
+            public PendingPrim(Vector3 c, Vector3 s, string d, Color4 color, bool isLight = false, float glow = 0f)
+                { Center = c; Scale = s; Description = d; Color = color; IsLight = isLight; Glow = glow; }
         }
 
         private static GridClient         client       = new GridClient();
@@ -197,12 +199,27 @@ namespace SLHouseBuilder
                     client.Objects.SetDescription(client.Network.CurrentSim, p.LocalID, p.Description);
                     Thread.Sleep(50);
 
-                    // Apply color/alpha — BuildPrimData doesn't set textures, so we do it here
+                    // Apply color/alpha/glow/fullbright — BuildPrimData doesn't set textures, so we do it here
                     var te = new Primitive.TextureEntry(UUID.Zero);
                     te.DefaultTexture.RGBA = p.Color;
+                    if (p.Glow > 0f)  te.DefaultTexture.Glow       = p.Glow;
+                    if (p.IsLight)    te.DefaultTexture.Fullbright  = true;
                     client.Objects.SetTextures(client.Network.CurrentSim, p.LocalID, te);
+                    Thread.Sleep(100);
 
-                    Thread.Sleep(100);  // rate-limit: give SL time to process each prim's packets
+                    if (p.IsLight)
+                    {
+                        client.Objects.SetLight(client.Network.CurrentSim, p.LocalID,
+                            new Primitive.LightData
+                            {
+                                Color     = p.Color,
+                                Intensity = 1.0f,
+                                Radius    = 10.0f,
+                                Cutoff    = 0.0f,
+                                Falloff   = 0.75f
+                            });
+                        Thread.Sleep(50);
+                    }
                 }
 
                 // Foundation is pendingPrims[0] — first in list = root in SL's ObjectLink packet
@@ -360,6 +377,7 @@ namespace SLHouseBuilder
             BuildDoors();
             BuildInteriorWalls();
             BuildStaircase();
+            BuildCeilingLights();
 
             Console.WriteLine("[Builder] === Build complete! ===");
         }
@@ -416,14 +434,14 @@ namespace SLHouseBuilder
 
             // ── FRONT WALL  (Y = -7, runs along X: -9 to +9) ─────────────────
             // Openings: bay window X=[-7.5, -4.4], front door X=[-3.0, -2.0],
-            //           front-right window X=[+1.6, +3.4]
+            //           front-right window X=[+2.1, +3.9]  (left casing flush with spine wall at X=2)
             float fy = -7f + wallT / 2f;
 
             // Full-height columns between/around openings
             RezBox(Offset(-8.25f, fy, colZ), new Vector3(1.5f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 1");
             RezBox(Offset(-3.70f, fy, colZ), new Vector3(1.4f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 2");
-            RezBox(Offset(-0.20f, fy, colZ), new Vector3(3.6f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 3");
-            RezBox(Offset( 6.20f, fy, colZ), new Vector3(5.6f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 4");
+            RezBox(Offset( 0.05f, fy, colZ), new Vector3(4.1f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 3");
+            RezBox(Offset( 6.45f, fy, colZ), new Vector3(5.1f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 4");
 
             // Bay window (merged opening X=-7.5 to -4.4, center=-5.95, w=3.1)
             RezBox(Offset(-5.95f, fy, sillZ),   new Vector3(3.1f, wallT, sillH),   SIDING_COLOR, "Wall - Front Bay Sill");
@@ -432,9 +450,9 @@ namespace SLHouseBuilder
             // Front door (opening X=-3.0 to -2.0, center=-2.5, w=1.0) — header only
             RezBox(Offset(-2.5f, fy, doorHdrZ), new Vector3(1.0f, wallT, doorHdrH), SIDING_COLOR, "Wall - Front Door Header");
 
-            // Front-right window (X=+1.6 to +3.4, center=+2.5, w=1.8)
-            RezBox(Offset(2.5f, fy, sillZ),   new Vector3(1.8f, wallT, sillH),   SIDING_COLOR, "Wall - Front Win Sill");
-            RezBox(Offset(2.5f, fy, winHdrZ), new Vector3(1.8f, wallT, winHdrH), SIDING_COLOR, "Wall - Front Win Header");
+            // Front-right window (X=+2.1 to +3.9, center=+3.0, w=1.8)
+            RezBox(Offset(3.0f, fy, sillZ),   new Vector3(1.8f, wallT, sillH),   SIDING_COLOR, "Wall - Front Win Sill");
+            RezBox(Offset(3.0f, fy, winHdrZ), new Vector3(1.8f, wallT, winHdrH), SIDING_COLOR, "Wall - Front Win Header");
 
             // ── REAR WALL  (Y = +7, runs along X: -9 to +9) ──────────────────
             // Openings: rear-left X=[-6, -4], rear-center X=[-1, +1], rear-right X=[+4, +6]
@@ -495,10 +513,11 @@ namespace SLHouseBuilder
             // Sectional door panels — centered in their openings
             // Left opening:  X = 10.1 to 13.25  → center 11.675
             // Right opening: X = 13.75 to 16.9  → center 15.325
-            float doorCenterZ = WALL_BASE + garageH * 0.43f;
-            float doorH       = garageH * 0.86f;
-            RezBox(Offset(11.675f, -6.85f, doorCenterZ), new Vector3(3.1f, 0.05f, doorH), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Left");
-            RezBox(Offset(15.325f, -6.85f, doorCenterZ), new Vector3(3.1f, 0.05f, doorH), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Right");
+            // Panels fill floor-to-header-bottom (3.2 m), slightly wider than each opening (3.25 m)
+            float doorH       = garageH - 0.30f;   // fills floor to header bottom (header is 0.3 m tall)
+            float doorCenterZ = WALL_BASE + doorH / 2f;
+            RezBox(Offset(11.675f, -6.85f, doorCenterZ), new Vector3(3.25f, 0.05f, doorH), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Left");
+            RezBox(Offset(15.325f, -6.85f, doorCenterZ), new Vector3(3.25f, 0.05f, doorH), new Color4(0.82f, 0.82f, 0.82f, 1f), "Garage Door Right");
 
             // Rear & side walls
             RezBox(Offset(13.5f,  5f - wallT / 2f, wallZ), new Vector3(9f,   wallT, garageH), GARAGE_COLOR, "Garage Rear Wall");
@@ -668,6 +687,14 @@ namespace SLHouseBuilder
             // Ridge cap
             RezBox(Offset(13.5f, -1f, roofBaseZ + riseZ),
                    new Vector3(9f + overhang * 2f, 0.4f, 0.25f), ROOF_COLOR, "Garage Ridge Cap");
+
+            // Gable end walls — triangular fill from roof base to ridge at each X end
+            float wallT  = 0.2f;
+            float gableH = riseZ;
+            float gableZ = roofBaseZ + gableH / 2f;
+            // Left end sits on the interior shared wall (X=9); right end on the exterior side wall (X=18)
+            RezGableWall(Offset( 9f + wallT / 2f, -1f, gableZ), new Vector3(wallT, 12f, gableH), SIDING_COLOR,  "Garage Gable - Left");
+            RezGableWall(Offset(18f - wallT / 2f, -1f, gableZ), new Vector3(wallT, 12f, gableH), GARAGE_COLOR, "Garage Gable - Right");
         }
         // ─────────────────────────────────────────────────────────────────────────
         //  CHIMNEY
@@ -737,7 +764,7 @@ namespace SLHouseBuilder
             // (they would overlap/clutter the gap between the windows)
             RezWindow(-5.5f, -7f, winZ, 2.2f, winH, "Bay Window Left",  suppressLeft: true);
             RezWindow(-7.0f, -7f, winZ, 1.0f, winH, "Bay Window Right", suppressRight: true);
-            RezWindow( 2.5f, -7f, winZ, 1.8f, winH, "Front Right Window");
+            RezWindow( 3.0f, -7f, winZ, 1.8f, winH, "Front Right Window");
 
             // Rear facade (extDir +1 = exterior is toward +Y)
             RezWindow(-5f,  7f, winZ, 2.0f, winH, "Rear Left Window",   extDir: +1f);
@@ -812,10 +839,12 @@ namespace SLHouseBuilder
             float wallT = 0.15f;
             float wallZ = WALL_BASE + wallH / 2f;  // bottom at foundation top
 
-            // Spans trimmed ~0.2 m per end so edges don't clip through exterior walls.
-            // Spine wall split into two pieces around the staircase opening (Y=-4 to Y=-1.5).
-            RezBox(Offset( 2f,  -5.375f, wallZ), new Vector3(wallT, 2.75f, wallH), TRIM_COLOR, "Interior - Spine Wall Front");
-            RezBox(Offset( 2f,   2.625f, wallZ), new Vector3(wallT, 8.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Rear");
+            // Spine wall — three pieces:
+            //   Front section: Y=-6.75 → -1.5  (runs alongside the staircase, enclosing it on the right)
+            //   Door opening:  Y=-1.5  → -0.5  (1 m passage from stair hall into upper floor)
+            //   Rear section:  Y=-0.5  →  6.75
+            RezBox(Offset( 2f,  -4.125f, wallZ), new Vector3(wallT, 5.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Front");
+            RezBox(Offset( 2f,   3.125f, wallZ), new Vector3(wallT, 7.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Rear");
             RezBox(Offset(-4f,  -2f,     wallZ), new Vector3(4.6f, wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
             RezBox(Offset( 5f,   2f,     wallZ), new Vector3(6.6f, wallT,  wallH), TRIM_COLOR, "Interior - Kitchen Rear");
             RezBox(Offset(-4.5f, 3.5f,   wallZ), new Vector3(8.6f, wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
@@ -850,6 +879,38 @@ namespace SLHouseBuilder
         }
 
         // ─────────────────────────────────────────────────────────────────────────
+        //  CEILING LIGHTS
+        //  Small disc fixtures flush with the first-floor ceiling, one per room.
+        //  Warm-white color, SL light property enabled, subtle glow.
+        // ─────────────────────────────────────────────────────────────────────────
+        static void BuildCeilingLights()
+        {
+            Console.WriteLine("[Builder] Ceiling lights…");
+
+            // Soft warm white
+            var lightColor = new Color4(1.0f, 0.97f, 0.88f, 1.0f);
+
+            // Top face of disc sits flush with the first-floor ceiling
+            float ceilZ = FLOOR1_TOP;
+
+            // Living room — front-left, bay-window wall
+            RezLight(-5.0f, -4.5f, ceilZ, 0.4f, lightColor, "Light - Living Room");
+
+            // Dining / rear-left — between living divider and master divider
+            RezLight(-5.0f,  1.5f, ceilZ, 0.4f, lightColor, "Light - Dining Room");
+
+            // Kitchen — right side, north of kitchen rear wall
+            RezLight( 5.5f,  4.5f, ceilZ, 0.4f, lightColor, "Light - Kitchen");
+
+            // Front entry / family room — right of spine wall, south area
+            RezLight( 3.75f, -4.0f, ceilZ, 0.4f, lightColor, "Light - Entry");
+
+            // Upstairs — disc hanging 0.25 m below the main ridge
+            float upCeilZ = ROOF_BASE + 3.1f - 0.25f;
+            RezLight( 0f, 0f, upCeilZ, 0.4f, lightColor, "Light - Upstairs");
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
         //  SETTLED POSITION  — polls SimPosition until Z > 1 m (terrain level)
         //  After login or a failed/timed-out teleport the client can return Z=0
         //  before the first AgentUpdate echo arrives from the sim.  All prims are
@@ -879,6 +940,17 @@ namespace SLHouseBuilder
         static void RezBox(Vector3 pos, Vector3 size, Color4 color, string description)
         {
             RezPrim(pos, size, Quaternion.Identity, color, description);
+        }
+
+        // Rez a flat disc (cylinder) ceiling light with the SL light property and glow enabled.
+        // lx/ly: local-space center; lz should be the ceiling height (prim top face flush with ceiling).
+        static void RezLight(float lx, float ly, float lz, float diameter, Color4 color, string description)
+        {
+            var cd = BuildPrimData(color);
+            cd.ProfileCurve = ProfileCurve.Circle;   // disc shape
+            float halfH = 0.05f / 2f;
+            RezAndSetPrim(cd, Offset(lx, ly, lz - halfH), new Vector3(diameter, diameter, 0.05f),
+                          Quaternion.Identity, color, description, isLight: true, glow: 0.1f);
         }
 
         static void RezGableWall(Vector3 pos, Vector3 size, Color4 color, string description)
@@ -919,7 +991,7 @@ namespace SLHouseBuilder
             return cd;
         }
 
-        static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, Color4 color, string description)
+        static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, Color4 color, string description, bool isLight = false, float glow = 0f)
         {
             // Compose build orientation into every prim rotation
             if (buildYaw != 0f)
@@ -930,7 +1002,7 @@ namespace SLHouseBuilder
             Vector3 bottomPos = new(pos.X, pos.Y, pos.Z - size.Z / 2f);
 
             // Register the expected center + scale so OnPrimEcho can match the server reply.
-            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description, color)); }
+            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description, color, isLight, glow)); }
 
             client.Self.Movement.SendUpdate();
             client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, bottomPos, size, rot);
