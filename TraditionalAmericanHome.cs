@@ -359,6 +359,7 @@ namespace SLHouseBuilder
             BuildWindows();
             BuildDoors();
             BuildInteriorWalls();
+            BuildStaircase();
 
             Console.WriteLine("[Builder] === Build complete! ===");
         }
@@ -517,8 +518,13 @@ namespace SLHouseBuilder
 
             float wallT = 0.2f;
 
-            // Floor deck sits on top of first-floor walls; center = top-of-walls + half-thickness
-            RezBox(Offset(0, 0, FLOOR1_TOP + FLOOR2_DECK_H / 2f), new Vector3(18f, 14f, FLOOR2_DECK_H), FOUNDATION, "Second Floor Deck");
+            // Floor deck — split into 4 pieces to leave a staircase opening (X=[0,2], Y=[-4,-1.5])
+            float deckZ = FLOOR1_TOP + FLOOR2_DECK_H / 2f;
+            float dkH   = FLOOR2_DECK_H;
+            RezBox(Offset( 0f,    2.75f, deckZ), new Vector3(18f, 8.5f, dkH), FOUNDATION, "Second Floor Deck - Rear");
+            RezBox(Offset( 0f,   -5.5f,  deckZ), new Vector3(18f, 3.0f, dkH), FOUNDATION, "Second Floor Deck - Front");
+            RezBox(Offset(-4.5f, -2.75f, deckZ), new Vector3(9.0f, 2.5f, dkH), FOUNDATION, "Second Floor Deck - Left");
+            RezBox(Offset( 5.5f, -2.75f, deckZ), new Vector3(7.0f, 2.5f, dkH), FOUNDATION, "Second Floor Deck - Right");
 
             // Knee walls
             float kneeZ = FLOOR2_BASE + KNEE_H / 2f;
@@ -539,49 +545,48 @@ namespace SLHouseBuilder
 
             // Front dormers
             float dormerZ = FLOOR2_BASE + KNEE_H + 0.5f;
-            BuildDormer(Offset(-4f, -6.5f, dormerZ), facing: -1);
-            BuildDormer(Offset( 4f, -6.5f, dormerZ), facing: -1);
+            BuildDormer(-4f, -6.5f, dormerZ, facing: -1);
+            BuildDormer( 4f, -6.5f, dormerZ, facing: -1);
         }
 
-        static void BuildDormer(Vector3 pos, int facing)
+        // lx/ly/lz: local-space center at eave height; facing=-1 means front of house (toward -Y)
+        static void BuildDormer(float lx, float ly, float lz, int facing)
         {
-            // facing = -1 means front of house (toward -Y); pos is world-space center at eave height
             float dW    = 2.4f;    // width (X)
             float dH    = 1.6f;    // wall height
             float dD    = 1.4f;    // depth (Y)
             float wallT = 0.15f;
 
             // Front face is toward -Y (facing the street)
-            float faceY = pos.Y - dD / 2f;           // exterior face Y
-            float fwCY  = faceY + wallT / 2f;         // front-wall center Y
-            float topZ  = pos.Z + dH;
+            float faceY = ly - dD / 2f;           // local exterior face Y
+            float fwCY  = faceY + wallT / 2f;     // local front-wall center Y
+            float topZ  = lz + dH;
 
             // ── Front wall split around window ──────────────────────────────────
             float winW  = 1.0f;
             float winH  = 0.9f;
-            float winCZ = pos.Z + dH * 0.54f;
+            float winCZ = lz + dH * 0.54f;
             float winBot = winCZ - winH / 2f;
             float winTop = winCZ + winH / 2f;
 
-            float colW = (dW - winW) / 2f;   // 0.7 m each side
-            float colCZ = pos.Z + dH / 2f;
+            float colW  = (dW - winW) / 2f;   // 0.7 m each side
+            float colCZ = lz + dH / 2f;
 
-            RezBox(new Vector3(pos.X - dW / 2f + colW / 2f, fwCY, colCZ), new Vector3(colW, wallT, dH),            SIDING_COLOR, "Dormer Front L");
-            RezBox(new Vector3(pos.X + dW / 2f - colW / 2f, fwCY, colCZ), new Vector3(colW, wallT, dH),            SIDING_COLOR, "Dormer Front R");
-            RezBox(new Vector3(pos.X, fwCY, pos.Z + (winBot - pos.Z) / 2f), new Vector3(winW, wallT, winBot - pos.Z), SIDING_COLOR, "Dormer Sill");
-            RezBox(new Vector3(pos.X, fwCY, winTop + (topZ - winTop) / 2f), new Vector3(winW, wallT, topZ - winTop), SIDING_COLOR, "Dormer Header");
+            RezBox(Offset(lx - dW / 2f + colW / 2f, fwCY, colCZ), new Vector3(colW, wallT, dH),             SIDING_COLOR, "Dormer Front L");
+            RezBox(Offset(lx + dW / 2f - colW / 2f, fwCY, colCZ), new Vector3(colW, wallT, dH),             SIDING_COLOR, "Dormer Front R");
+            RezBox(Offset(lx,                        fwCY, lz + (winBot - lz) / 2f), new Vector3(winW, wallT, winBot - lz),   SIDING_COLOR, "Dormer Sill");
+            RezBox(Offset(lx,                        fwCY, winTop + (topZ - winTop) / 2f), new Vector3(winW, wallT, topZ - winTop), SIDING_COLOR, "Dormer Header");
 
             // ── Side walls ──────────────────────────────────────────────────────
-            RezBox(new Vector3(pos.X - dW / 2f + wallT / 2f, pos.Y, colCZ), new Vector3(wallT, dD, dH), SIDING_COLOR, "Dormer Side L");
-            RezBox(new Vector3(pos.X + dW / 2f - wallT / 2f, pos.Y, colCZ), new Vector3(wallT, dD, dH), SIDING_COLOR, "Dormer Side R");
+            RezBox(Offset(lx - dW / 2f + wallT / 2f, ly, colCZ), new Vector3(wallT, dD, dH), SIDING_COLOR, "Dormer Side L");
+            RezBox(Offset(lx + dW / 2f - wallT / 2f, ly, colCZ), new Vector3(wallT, dD, dH), SIDING_COLOR, "Dormer Side R");
 
             // ── 4-piece exterior casing ─────────────────────────────────────────
-
-            float dcy = faceY - CASING_T / 2f;   // exterior face of dormer casing
-            RezBox(new Vector3(pos.X,                       dcy, winCZ + winH / 2f + CASING_W / 2f), new Vector3(winW + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, "Dormer Window Casing Top");
-            RezBox(new Vector3(pos.X,                       dcy, winCZ - winH / 2f - CASING_W / 2f), new Vector3(winW + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, "Dormer Window Casing Sill");
-            RezBox(new Vector3(pos.X - winW / 2f - CASING_W / 2f, dcy, winCZ),                       new Vector3(CASING_W, CASING_T, winH),                 TRIM_COLOR, "Dormer Window Casing Left");
-            RezBox(new Vector3(pos.X + winW / 2f + CASING_W / 2f, dcy, winCZ),                       new Vector3(CASING_W, CASING_T, winH),                 TRIM_COLOR, "Dormer Window Casing Right");
+            float dcy = faceY - CASING_T / 2f;   // local Y: exterior face of dormer casing
+            RezBox(Offset(lx,                              dcy, winCZ + winH / 2f + CASING_W / 2f), new Vector3(winW + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, "Dormer Window Casing Top");
+            RezBox(Offset(lx,                              dcy, winCZ - winH / 2f - CASING_W / 2f), new Vector3(winW + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, "Dormer Window Casing Sill");
+            RezBox(Offset(lx - winW / 2f - CASING_W / 2f, dcy, winCZ), new Vector3(CASING_W, CASING_T, winH), TRIM_COLOR, "Dormer Window Casing Left");
+            RezBox(Offset(lx + winW / 2f + CASING_W / 2f, dcy, winCZ), new Vector3(CASING_W, CASING_T, winH), TRIM_COLOR, "Dormer Window Casing Right");
 
             // ── Gabled roof — 22° pitch matching main house ─────────────────────
             float pitchDeg = 22f;
@@ -590,16 +595,16 @@ namespace SLHouseBuilder
             float pCtrZ    = topZ + riseZ / 2f;
 
             RezTiltedRoofPanel(
-                center:   new Vector3(pos.X, pos.Y - halfSpan / 2f, pCtrZ),
+                center:   Offset(lx, ly - halfSpan / 2f, pCtrZ),
                 size:     new Vector3(dW + 0.25f, halfSpan, 0.12f),
                 pitchDeg: pitchDeg, forward: true,  label: "Dormer Roof Front");
             RezTiltedRoofPanel(
-                center:   new Vector3(pos.X, pos.Y + halfSpan / 2f, pCtrZ),
+                center:   Offset(lx, ly + halfSpan / 2f, pCtrZ),
                 size:     new Vector3(dW + 0.25f, halfSpan, 0.12f),
                 pitchDeg: pitchDeg, forward: false, label: "Dormer Roof Rear");
 
             // Ridge cap
-            RezBox(new Vector3(pos.X, pos.Y, topZ + riseZ), new Vector3(dW + 0.3f, 0.2f, 0.15f), ROOF_COLOR, "Dormer Ridge");
+            RezBox(Offset(lx, ly, topZ + riseZ), new Vector3(dW + 0.3f, 0.2f, 0.15f), ROOF_COLOR, "Dormer Ridge");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -730,45 +735,47 @@ namespace SLHouseBuilder
 
             // Front facade — suppress the inner casings between the two adjacent bay windows
             // (they would overlap/clutter the gap between the windows)
-            RezWindow(    Offset(-5.5f, -7f, winZ), 2.2f, winH, "Bay Window Left",  suppressLeft: true);
-            RezWindow(    Offset(-7.0f, -7f, winZ), 1.0f, winH, "Bay Window Right", suppressRight: true);
-            RezWindow(    Offset( 2.5f, -7f, winZ), 1.8f, winH, "Front Right Window");
+            RezWindow(-5.5f, -7f, winZ, 2.2f, winH, "Bay Window Left",  suppressLeft: true);
+            RezWindow(-7.0f, -7f, winZ, 1.0f, winH, "Bay Window Right", suppressRight: true);
+            RezWindow( 2.5f, -7f, winZ, 1.8f, winH, "Front Right Window");
 
             // Rear facade (extDir +1 = exterior is toward +Y)
-            RezWindow(    Offset(-5f,  7f, winZ), 2.0f, winH, "Rear Left Window",   extDir: +1f);
-            RezWindow(    Offset( 0f,  7f, winZ), 2.0f, winH, "Rear Center Window", extDir: +1f);
-            RezWindow(    Offset( 5f,  7f, winZ), 2.0f, winH, "Rear Right Window",  extDir: +1f);
+            RezWindow(-5f,  7f, winZ, 2.0f, winH, "Rear Left Window",   extDir: +1f);
+            RezWindow( 0f,  7f, winZ, 2.0f, winH, "Rear Center Window", extDir: +1f);
+            RezWindow( 5f,  7f, winZ, 2.0f, winH, "Rear Right Window",  extDir: +1f);
 
             // Left side
-            RezWindowSide(Offset(-9f, -3f, winZ), 1.4f, winH, "Left Side Window 1");
-            RezWindowSide(Offset(-9f,  3f, winZ), 1.4f, winH, "Left Side Window 2");
+            RezWindowSide(-9f, -3f, winZ, 1.4f, winH, "Left Side Window 1");
+            RezWindowSide(-9f,  3f, winZ, 1.4f, winH, "Left Side Window 2");
         }
 
 
         // Rez a front/rear-facing window with 4-piece exterior casing.
+        // lx/ly/lz:     local-space center of the window opening
         // extDir:       -1 = exterior toward -Y (front wall), +1 = toward +Y (rear wall)
         // suppressLeft / suppressRight: omit the side casing where two windows are adjacent
         //   (prevents overlapping prims and fixes echo-matching ambiguity between close prims)
-        static void RezWindow(Vector3 center, float w, float h, string label,
+        static void RezWindow(float lx, float ly, float lz, float w, float h, string label,
                               float extDir = -1f, bool suppressLeft = false, bool suppressRight = false)
         {
-            float cy = center.Y + extDir * CASING_T / 2f;   // casing center Y, proud of wall face
-            RezBox(new Vector3(center.X, cy, center.Z + h / 2f + CASING_W / 2f), new Vector3(w + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, label + " Casing Top");
-            RezBox(new Vector3(center.X, cy, center.Z - h / 2f - CASING_W / 2f), new Vector3(w + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, label + " Casing Sill");
+            float ly2 = ly + extDir * CASING_T / 2f;   // local Y, pushed proud of wall exterior face
+            RezBox(Offset(lx,                          ly2, lz + h / 2f + CASING_W / 2f), new Vector3(w + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, label + " Casing Top");
+            RezBox(Offset(lx,                          ly2, lz - h / 2f - CASING_W / 2f), new Vector3(w + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, label + " Casing Sill");
             if (!suppressLeft)
-                RezBox(new Vector3(center.X - w / 2f - CASING_W / 2f, cy, center.Z), new Vector3(CASING_W, CASING_T, h), TRIM_COLOR, label + " Casing Left");
+                RezBox(Offset(lx - w / 2f - CASING_W / 2f, ly2, lz), new Vector3(CASING_W, CASING_T, h), TRIM_COLOR, label + " Casing Left");
             if (!suppressRight)
-                RezBox(new Vector3(center.X + w / 2f + CASING_W / 2f, cy, center.Z), new Vector3(CASING_W, CASING_T, h), TRIM_COLOR, label + " Casing Right");
+                RezBox(Offset(lx + w / 2f + CASING_W / 2f, ly2, lz), new Vector3(CASING_W, CASING_T, h), TRIM_COLOR, label + " Casing Right");
         }
 
         // Rez a side-facing window (left wall, exterior toward -X) with 4-piece casing.
-        static void RezWindowSide(Vector3 center, float w, float h, string label)
+        // lx/ly/lz: local-space center of the window opening
+        static void RezWindowSide(float lx, float ly, float lz, float w, float h, string label)
         {
-            float cx = center.X - CASING_T / 2f;   // casing center X, proud of left-wall exterior face
-            RezBox(new Vector3(cx, center.Y,                     center.Z + h / 2f + CASING_W / 2f), new Vector3(CASING_T, w + CASING_W * 2, CASING_W), TRIM_COLOR, label + " Casing Top");
-            RezBox(new Vector3(cx, center.Y,                     center.Z - h / 2f - CASING_W / 2f), new Vector3(CASING_T, w + CASING_W * 2, CASING_W), TRIM_COLOR, label + " Casing Sill");
-            RezBox(new Vector3(cx, center.Y - w / 2f - CASING_W / 2f, center.Z),                     new Vector3(CASING_T, CASING_W, h),                 TRIM_COLOR, label + " Casing Front");
-            RezBox(new Vector3(cx, center.Y + w / 2f + CASING_W / 2f, center.Z),                     new Vector3(CASING_T, CASING_W, h),                 TRIM_COLOR, label + " Casing Rear");
+            float lx2 = lx - CASING_T / 2f;   // local X, pushed proud of left-wall exterior face
+            RezBox(Offset(lx2, ly,                          lz + h / 2f + CASING_W / 2f), new Vector3(CASING_T, w + CASING_W * 2, CASING_W), TRIM_COLOR, label + " Casing Top");
+            RezBox(Offset(lx2, ly,                          lz - h / 2f - CASING_W / 2f), new Vector3(CASING_T, w + CASING_W * 2, CASING_W), TRIM_COLOR, label + " Casing Sill");
+            RezBox(Offset(lx2, ly - w / 2f - CASING_W / 2f, lz), new Vector3(CASING_T, CASING_W, h), TRIM_COLOR, label + " Casing Front");
+            RezBox(Offset(lx2, ly + w / 2f + CASING_W / 2f, lz), new Vector3(CASING_T, CASING_W, h), TRIM_COLOR, label + " Casing Rear");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -805,15 +812,41 @@ namespace SLHouseBuilder
             float wallT = 0.15f;
             float wallZ = WALL_BASE + wallH / 2f;  // bottom at foundation top
 
-            // Spans trimmed ~0.2 m per end so edges don't clip through exterior walls
-            RezBox(Offset( 2f,   0,    wallZ), new Vector3(wallT, 13.5f, wallH), TRIM_COLOR, "Interior - Center Spine Wall");
-            RezBox(Offset(-4f,  -2f,   wallZ), new Vector3(4.6f, wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
-            RezBox(Offset( 5f,   2f,   wallZ), new Vector3(6.6f, wallT,  wallH), TRIM_COLOR, "Interior - Kitchen Rear");
-            RezBox(Offset(-4.5f, 3.5f, wallZ), new Vector3(8.6f, wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
-            RezBox(Offset( 5.5f, 0,    wallZ), new Vector3(wallT, 5.6f,  wallH), TRIM_COLOR, "Interior - Bath-Laundry Wall");
+            // Spans trimmed ~0.2 m per end so edges don't clip through exterior walls.
+            // Spine wall split into two pieces around the staircase opening (Y=-4 to Y=-1.5).
+            RezBox(Offset( 2f,  -5.375f, wallZ), new Vector3(wallT, 2.75f, wallH), TRIM_COLOR, "Interior - Spine Wall Front");
+            RezBox(Offset( 2f,   2.625f, wallZ), new Vector3(wallT, 8.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Rear");
+            RezBox(Offset(-4f,  -2f,     wallZ), new Vector3(4.6f, wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
+            RezBox(Offset( 5f,   2f,     wallZ), new Vector3(6.6f, wallT,  wallH), TRIM_COLOR, "Interior - Kitchen Rear");
+            RezBox(Offset(-4.5f, 3.5f,   wallZ), new Vector3(8.6f, wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
+            RezBox(Offset( 5.5f, 0,      wallZ), new Vector3(wallT, 5.6f,  wallH), TRIM_COLOR, "Interior - Bath-Laundry Wall");
+        }
 
-            // Staircase landing
-            RezBox(Offset(2.5f, -3f, WALL_BASE + wallH * 0.3f), new Vector3(2.5f, 3.5f, 0.12f), FOUNDATION, "Staircase Landing");
+        // ─────────────────────────────────────────────────────────────────────────
+        //  STAIRCASE
+        //  10 cumulative-box steps running in +Y (south→north), centered at X=1.
+        //  Opening in spine wall and second-floor deck: X=[0,2], Y=[-4,-1.5].
+        //  Each step is a solid box from WALL_BASE up to its tread face so the
+        //  staircase looks like a rising pyramid from the side.
+        // ─────────────────────────────────────────────────────────────────────────
+        static void BuildStaircase()
+        {
+            Console.WriteLine("[Builder] Staircase…");
+
+            const int   STEPS   = 10;
+            const float STEP_W  = 1.2f;                 // tread width  (X)
+            const float STEP_D  = 0.25f;                // tread depth  (Y)
+            const float STEP_H  = FLOOR1_H / STEPS;     // 0.40 m rise per step
+            const float STAIR_X = 1.0f;                 // center X (left of spine wall)
+            const float STAIR_Y0 = -4.0f;               // local Y of bottom-step front face
+
+            for (int i = 0; i < STEPS; i++)
+            {
+                float treadY = STAIR_Y0 + i * STEP_D + STEP_D / 2f;   // Y center of this tread
+                float boxH   = (i + 1) * STEP_H;                       // cumulative height
+                float boxZ   = WALL_BASE + boxH / 2f;                  // Z center (base at WALL_BASE)
+                RezBox(Offset(STAIR_X, treadY, boxZ), new Vector3(STEP_W, STEP_D, boxH), FOUNDATION, $"Stair Step {i + 1}");
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────────
