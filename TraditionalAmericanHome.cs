@@ -9,7 +9,7 @@
 //      (Optional) Set a FriendName in the credentials file and run with `dotnet run -- --at-friend` to build at their location instead of the bot's current position.
 //   4. Run. The house will be built relative to the bot's current position.
 //
-// PRIM BUDGET: ~85 prims
+// PRIM BUDGET: ~145 prims
 // FOOTPRINT:   ~18m wide x 14m deep (house) + 9m x 12m (garage)
 // HEIGHT:      ~11m ridge at peak
 //
@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using OpenMetaverse;
 
 namespace SLHouseBuilder
@@ -60,8 +61,10 @@ namespace SLHouseBuilder
             public readonly Vector3 Center;       // world-space center (what server echoes)
             public readonly Vector3 Scale;
             public readonly string  Description;
+            public readonly Color4  Color;
             public uint LocalID;                  // 0 until echo arrives
-            public PendingPrim(Vector3 c, Vector3 s, string d) { Center = c; Scale = s; Description = d; }
+            public PendingPrim(Vector3 c, Vector3 s, string d, Color4 color)
+                { Center = c; Scale = s; Description = d; Color = color; }
         }
 
         private static GridClient         client       = new GridClient();
@@ -70,18 +73,22 @@ namespace SLHouseBuilder
         private static List<PendingPrim>  pendingPrims = new();
         private static readonly object    primLock     = new();
 
+        // ── Casing (door/window trim frame) dimensions ────────────────────────────
+        private const float CASING_W = 0.10f;   // width of each casing piece (≈4 inches)
+        private const float CASING_T = 0.04f;   // thickness protruding from wall face
+
         // ── Colors ────────────────────────────────────────────────────────────────
         private static readonly Color4 SIDING_COLOR  = new Color4(0.93f, 0.87f, 0.78f, 1f);
         private static readonly Color4 TRIM_COLOR    = new Color4(0.95f, 0.95f, 0.92f, 1f);
         private static readonly Color4 ROOF_COLOR    = new Color4(0.22f, 0.20f, 0.20f, 1f);
         private static readonly Color4 GARAGE_COLOR  = new Color4(0.93f, 0.87f, 0.78f, 1f);
-        private static readonly Color4 DOOR_COLOR    = new Color4(0.18f, 0.24f, 0.38f, 1f);
-        private static readonly Color4 WINDOW_COLOR  = new Color4(0.55f, 0.72f, 0.85f, 0.5f);
+
+
         private static readonly Color4 FOUNDATION    = new Color4(0.55f, 0.54f, 0.52f, 1f);
         private static readonly Color4 CHIMNEY_COLOR = new Color4(0.60f, 0.35f, 0.28f, 1f);
 
         // ─────────────────────────────────────────────────────────────────────────
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             bool atFriend = Array.Exists(args, a => a.Equals("--at-friend", StringComparison.OrdinalIgnoreCase));
 
@@ -107,7 +114,7 @@ namespace SLHouseBuilder
             var loginParams = client.Network.DefaultLoginParams(firstName, lastName, password,
                                                                 "HouseBuilder", "1.0");
             Console.WriteLine("[Builder] Logging in…");
-            if (!client.Network.Login(loginParams))
+            if (!await client.Network.LoginAsync(loginParams))
             {
                 Console.WriteLine("[Builder] Login failed: " + client.Network.LoginMessage);
                 return;
@@ -121,7 +128,7 @@ namespace SLHouseBuilder
             {
                 if (atFriend)
                     Console.WriteLine("[Builder] --at-friend specified but FriendName is not set in credentials.json. Building at bot position.");
-                origin = client.Self.SimPosition;
+                origin = GetSettledPosition();
             }
 
             Console.WriteLine($"[Builder] Build origin: {origin}  yaw: {buildYaw * 180f / MathF.PI:F1}°");
@@ -144,8 +151,8 @@ namespace SLHouseBuilder
                 foreach (var p in pendingPrims)
                 {
                     if (p.LocalID == 0 &&
-                        Vector3.Distance(e.Prim.Position, p.Center) < 0.3f &&
-                        Vector3.Distance(e.Prim.Scale,    p.Scale)  < 0.1f)
+                        Vector3.Distance(e.Prim.Position, p.Center) < 0.15f &&
+                        Vector3.Distance(e.Prim.Scale,    p.Scale)  < 0.05f)
                     {
                         p.LocalID = e.Prim.LocalID;
                         break;
@@ -160,7 +167,7 @@ namespace SLHouseBuilder
         static void FinalizeAndLink()
         {
             // Wait until every prim has been matched or we hit the timeout
-            var deadline = DateTime.UtcNow.AddSeconds(30);
+            var deadline = DateTime.UtcNow.AddSeconds(90);
             while (DateTime.UtcNow < deadline)
             {
                 lock (primLock)
@@ -182,11 +189,20 @@ namespace SLHouseBuilder
                 {
                     if (p.LocalID == 0)
                     {
-                        Console.WriteLine($"[Builder] Warning: '{p.Description}' was not matched — skipping rename.");
+                        Console.WriteLine($"[Builder] Warning: '{p.Description}' was not matched — skipping.");
                         continue;
                     }
                     client.Objects.SetName(client.Network.CurrentSim, p.LocalID, p.Description);
+                    Thread.Sleep(50);
                     client.Objects.SetDescription(client.Network.CurrentSim, p.LocalID, p.Description);
+                    Thread.Sleep(50);
+
+                    // Apply color/alpha — BuildPrimData doesn't set textures, so we do it here
+                    var te = new Primitive.TextureEntry(UUID.Zero);
+                    te.DefaultTexture.RGBA = p.Color;
+                    client.Objects.SetTextures(client.Network.CurrentSim, p.LocalID, te);
+
+                    Thread.Sleep(100);  // rate-limit: give SL time to process each prim's packets
                 }
 
                 // Foundation is pendingPrims[0] — first in list = root in SL's ObjectLink packet
@@ -199,25 +215,35 @@ namespace SLHouseBuilder
 
             // Select all prims (SL requires objects to be selected before linking)
             client.Objects.SelectObjects(client.Network.CurrentSim, ids.ToArray());
-            Thread.Sleep(500);
+            Thread.Sleep(2000);  // give the server time to process the selection
 
             // Watch for the link confirmation: the server sends ObjectUpdate packets
             // for the newly linked prims, with ParentID set to the root's LocalID.
+            // We require at least 3 children confirmed to avoid false positives.
+            int linkCount = 0;
             var linkConfirmed = new ManualResetEventSlim(false);
             void onLink(object? s, PrimEventArgs e)
             {
-                if (e.Prim.LocalID == rootID || e.Prim.ParentID == rootID)
-                    linkConfirmed.Set();
+                if (e.Prim.ParentID == rootID)
+                {
+                    if (Interlocked.Increment(ref linkCount) >= 3)
+                        linkConfirmed.Set();
+                }
             }
 
             Console.WriteLine($"[Builder] Linking {ids.Count} prims (root: Foundation)…");
             client.Objects.ObjectUpdate += onLink;
             client.Objects.LinkPrims(client.Network.CurrentSim, ids);
-            linkConfirmed.Wait(10000);   // wait up to 10s for server confirmation
+            bool linked = linkConfirmed.Wait(15000);  // wait up to 15s for confirmation
             client.Objects.ObjectUpdate -= onLink;
 
+            if (!linked)
+                Console.WriteLine("[Builder] Warning: link confirmation timed out — linkset may not have formed.");
+
             client.Objects.DeselectObjects(client.Network.CurrentSim, ids.ToArray());
-            Console.WriteLine("[Builder] Linkset complete.");
+            Thread.Sleep(500);
+
+            Console.WriteLine($"[Builder] Linkset complete ({(linked ? "confirmed" : "unconfirmed")}).");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -240,7 +266,7 @@ namespace SLHouseBuilder
             if (friendID == UUID.Zero)
             {
                 Console.WriteLine($"[Builder] Friend '{friendName}' not found in friends list. Building at bot position.");
-                origin = client.Self.SimPosition;
+                origin = GetSettledPosition();
                 return;
             }
 
@@ -264,18 +290,31 @@ namespace SLHouseBuilder
             {
                 Console.WriteLine("[Builder] Timed out waiting for friend location. Building at bot position.");
                 client.Friends.FriendFoundReply -= onFound;
-                origin = client.Self.SimPosition;
+                origin = GetSettledPosition();
                 return;
             }
             client.Friends.FriendFoundReply -= onFound;
 
             Console.WriteLine($"[Builder] Friend at region {regionHandle}, local pos {friendPos}");
 
-            // Teleport to friend (works for both cross-sim and same-sim)
-            if (!client.Self.Teleport(regionHandle, friendPos))
+            // Teleport to friend — retry once on timeout before giving up
+            bool teleported = false;
+            for (int attempt = 1; attempt <= 2 && !teleported; attempt++)
             {
-                Console.WriteLine("[Builder] Teleport failed: " + client.Self.TeleportMessage + ". Building at bot position.");
-                origin = client.Self.SimPosition;
+                if (attempt > 1)
+                {
+                    Console.WriteLine("[Builder] Retrying teleport (attempt 2)…");
+                    Thread.Sleep(4000);
+                }
+                teleported = client.Self.Teleport(regionHandle, friendPos);
+                if (!teleported)
+                    Console.WriteLine($"[Builder] Teleport attempt {attempt} failed: {client.Self.TeleportMessage}");
+            }
+
+            if (!teleported)
+            {
+                origin = GetSettledPosition();
+                Console.WriteLine($"[Builder] All teleport attempts failed. Building at bot position: {origin}");
                 return;
             }
             Thread.Sleep(4000);   // wait for sim objects to stream in after teleport
@@ -297,7 +336,7 @@ namespace SLHouseBuilder
             else
             {
                 // Fallback: use bot's own position
-                origin = client.Self.SimPosition;
+                origin = GetSettledPosition();
                 Console.WriteLine($"[Builder] Friend avatar not visible in sim — building at bot position: {origin}");
             }
         }
@@ -340,21 +379,95 @@ namespace SLHouseBuilder
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        //  FIRST FLOOR WALLS  — bottom at foundation top (WALL_BASE)
+        //  FIRST FLOOR WALLS  — segmented around window/door openings
+        //  Each wall is split into columns + sill/header pieces so that windows
+        //  and doors have genuine open gaps (no solid backing).
         // ─────────────────────────────────────────────────────────────────────────
         static void BuildFirstFloorWalls()
         {
             Console.WriteLine("[Builder] First floor walls…");
 
-            float wallH = FLOOR1_H;
+            float wallH = FLOOR1_H;   // 4.0 m
             float wallT = 0.2f;
-            float wallZ = WALL_BASE + wallH / 2f;   // center = WALL_BASE + half height; bottom = WALL_BASE
 
-            Console.WriteLine($"[Debug] Wall center Z = {origin.Z + wallZ:F3}  (bottom={origin.Z + WALL_BASE:F3}, top={origin.Z + WALL_BASE + wallH:F3})");
-            RezBox(Offset(0,              -7f + wallT / 2f, wallZ), new Vector3(18f,  wallT, wallH), SIDING_COLOR, "Wall - Front");
-            RezBox(Offset(0,               7f - wallT / 2f, wallZ), new Vector3(18f,  wallT, wallH), SIDING_COLOR, "Wall - Rear");
-            RezBox(Offset(-9f + wallT / 2f, 0,              wallZ), new Vector3(wallT, 14f,  wallH), SIDING_COLOR, "Wall - Left");
-            RezBox(Offset( 9f - wallT / 2f, 0,              wallZ), new Vector3(wallT, 14f,  wallH), SIDING_COLOR, "Wall - Right");
+            // Full-height column center Z
+            float colZ = WALL_BASE + wallH / 2f;   // 2.5
+
+            // Window opening Z bounds (must match BuildWindows)
+            float winCenterZ = WALL_BASE + FLOOR1_H * 0.5f;   // 2.5
+            float winH       = 1.6f;
+            float winBot     = winCenterZ - winH / 2f;         // 1.7 — opening bottom
+            float winTop     = winCenterZ + winH / 2f;         // 3.3 — opening top
+
+            // Sill (wall below window): WALL_BASE → winBot
+            float sillH = winBot - WALL_BASE;                  // 1.2
+            float sillZ = WALL_BASE + sillH / 2f;              // 1.1
+
+            // Header (wall above window): winTop → ceiling
+            float winHdrH = WALL_BASE + wallH - winTop;        // 1.2
+            float winHdrZ = winTop + winHdrH / 2f;             // 3.9
+
+            // Door opening header (no sill — opening goes to floor)
+            float doorH    = 2.4f;
+            float doorTop  = WALL_BASE + doorH;                // 2.9
+            float doorHdrH = WALL_BASE + wallH - doorTop;      // 1.6
+            float doorHdrZ = doorTop + doorHdrH / 2f;          // 3.7
+
+            // ── FRONT WALL  (Y = -7, runs along X: -9 to +9) ─────────────────
+            // Openings: bay window X=[-7.5, -4.4], front door X=[-3.0, -2.0],
+            //           front-right window X=[+1.6, +3.4]
+            float fy = -7f + wallT / 2f;
+
+            // Full-height columns between/around openings
+            RezBox(Offset(-8.25f, fy, colZ), new Vector3(1.5f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 1");
+            RezBox(Offset(-3.70f, fy, colZ), new Vector3(1.4f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 2");
+            RezBox(Offset(-0.20f, fy, colZ), new Vector3(3.6f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 3");
+            RezBox(Offset( 6.20f, fy, colZ), new Vector3(5.6f, wallT, wallH), SIDING_COLOR, "Wall - Front Col 4");
+
+            // Bay window (merged opening X=-7.5 to -4.4, center=-5.95, w=3.1)
+            RezBox(Offset(-5.95f, fy, sillZ),   new Vector3(3.1f, wallT, sillH),   SIDING_COLOR, "Wall - Front Bay Sill");
+            RezBox(Offset(-5.95f, fy, winHdrZ), new Vector3(3.1f, wallT, winHdrH), SIDING_COLOR, "Wall - Front Bay Header");
+
+            // Front door (opening X=-3.0 to -2.0, center=-2.5, w=1.0) — header only
+            RezBox(Offset(-2.5f, fy, doorHdrZ), new Vector3(1.0f, wallT, doorHdrH), SIDING_COLOR, "Wall - Front Door Header");
+
+            // Front-right window (X=+1.6 to +3.4, center=+2.5, w=1.8)
+            RezBox(Offset(2.5f, fy, sillZ),   new Vector3(1.8f, wallT, sillH),   SIDING_COLOR, "Wall - Front Win Sill");
+            RezBox(Offset(2.5f, fy, winHdrZ), new Vector3(1.8f, wallT, winHdrH), SIDING_COLOR, "Wall - Front Win Header");
+
+            // ── REAR WALL  (Y = +7, runs along X: -9 to +9) ──────────────────
+            // Openings: rear-left X=[-6, -4], rear-center X=[-1, +1], rear-right X=[+4, +6]
+            float ry = 7f - wallT / 2f;
+
+            RezBox(Offset(-7.5f, ry, colZ), new Vector3(3.0f, wallT, wallH), SIDING_COLOR, "Wall - Rear Col 1");
+            RezBox(Offset(-2.5f, ry, colZ), new Vector3(3.0f, wallT, wallH), SIDING_COLOR, "Wall - Rear Col 2");
+            RezBox(Offset( 2.5f, ry, colZ), new Vector3(3.0f, wallT, wallH), SIDING_COLOR, "Wall - Rear Col 3");
+            RezBox(Offset( 7.5f, ry, colZ), new Vector3(3.0f, wallT, wallH), SIDING_COLOR, "Wall - Rear Col 4");
+
+            // Three rear windows (each w=2.0, centers at X=-5, 0, +5): sill + header
+            foreach (float wx in new float[] { -5f, 0f, 5f })
+            {
+                RezBox(Offset(wx, ry, sillZ),   new Vector3(2.0f, wallT, sillH),   SIDING_COLOR, "Wall - Rear Win Sill");
+                RezBox(Offset(wx, ry, winHdrZ), new Vector3(2.0f, wallT, winHdrH), SIDING_COLOR, "Wall - Rear Win Header");
+            }
+
+            // ── LEFT WALL  (X = -9, runs along Y: -7 to +7) ──────────────────
+            // Openings: win-1 Y=[-3.7, -2.3], win-2 Y=[+2.3, +3.7]
+            float lx = -9f + wallT / 2f;
+
+            RezBox(Offset(lx, -5.35f, colZ), new Vector3(wallT, 3.3f, wallH), SIDING_COLOR, "Wall - Left Col 1");
+            RezBox(Offset(lx,  0f,    colZ), new Vector3(wallT, 4.6f, wallH), SIDING_COLOR, "Wall - Left Col 2");
+            RezBox(Offset(lx,  5.35f, colZ), new Vector3(wallT, 3.3f, wallH), SIDING_COLOR, "Wall - Left Col 3");
+
+            // Two side windows (each w=1.4, centers at Y=-3, +3): sill + header
+            foreach (float wy in new float[] { -3f, 3f })
+            {
+                RezBox(Offset(lx, wy, sillZ),   new Vector3(wallT, 1.4f, sillH),   SIDING_COLOR, "Wall - Left Win Sill");
+                RezBox(Offset(lx, wy, winHdrZ), new Vector3(wallT, 1.4f, winHdrH), SIDING_COLOR, "Wall - Left Win Header");
+            }
+
+            // ── RIGHT WALL  (X = +9, solid — no windows on this side) ─────────
+            RezBox(Offset(9f - wallT / 2f, 0, colZ), new Vector3(wallT, 14f, wallH), SIDING_COLOR, "Wall - Right");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -432,14 +545,61 @@ namespace SLHouseBuilder
 
         static void BuildDormer(Vector3 pos, int facing)
         {
-            float dW = 2.4f;
-            float dH = 1.6f;
-            float dD = 1.4f;
+            // facing = -1 means front of house (toward -Y); pos is world-space center at eave height
+            float dW    = 2.4f;    // width (X)
+            float dH    = 1.6f;    // wall height
+            float dD    = 1.4f;    // depth (Y)
+            float wallT = 0.15f;
 
-            RezBox(pos, new Vector3(dW, dD, dH), SIDING_COLOR, "Dormer Body");
-            RezBox(new Vector3(pos.X, pos.Y - dD * 0.3f,      pos.Z + dH - 0.1f), new Vector3(dW + 0.3f, dD * 0.7f, 0.15f), ROOF_COLOR,   "Dormer Roof Panel");
-            RezBox(new Vector3(pos.X, pos.Y - dD / 2f - 0.05f, pos.Z + dH / 2f),  new Vector3(dW * 0.55f, 0.08f, dH * 0.55f), WINDOW_COLOR, "Dormer Window");
-            RezBox(new Vector3(pos.X, pos.Y - dD / 2f - 0.08f, pos.Z + dH / 2f),  new Vector3(dW * 0.65f, 0.05f, dH * 0.65f), TRIM_COLOR,   "Dormer Window Trim");
+            // Front face is toward -Y (facing the street)
+            float faceY = pos.Y - dD / 2f;           // exterior face Y
+            float fwCY  = faceY + wallT / 2f;         // front-wall center Y
+            float topZ  = pos.Z + dH;
+
+            // ── Front wall split around window ──────────────────────────────────
+            float winW  = 1.0f;
+            float winH  = 0.9f;
+            float winCZ = pos.Z + dH * 0.54f;
+            float winBot = winCZ - winH / 2f;
+            float winTop = winCZ + winH / 2f;
+
+            float colW = (dW - winW) / 2f;   // 0.7 m each side
+            float colCZ = pos.Z + dH / 2f;
+
+            RezBox(new Vector3(pos.X - dW / 2f + colW / 2f, fwCY, colCZ), new Vector3(colW, wallT, dH),            SIDING_COLOR, "Dormer Front L");
+            RezBox(new Vector3(pos.X + dW / 2f - colW / 2f, fwCY, colCZ), new Vector3(colW, wallT, dH),            SIDING_COLOR, "Dormer Front R");
+            RezBox(new Vector3(pos.X, fwCY, pos.Z + (winBot - pos.Z) / 2f), new Vector3(winW, wallT, winBot - pos.Z), SIDING_COLOR, "Dormer Sill");
+            RezBox(new Vector3(pos.X, fwCY, winTop + (topZ - winTop) / 2f), new Vector3(winW, wallT, topZ - winTop), SIDING_COLOR, "Dormer Header");
+
+            // ── Side walls ──────────────────────────────────────────────────────
+            RezBox(new Vector3(pos.X - dW / 2f + wallT / 2f, pos.Y, colCZ), new Vector3(wallT, dD, dH), SIDING_COLOR, "Dormer Side L");
+            RezBox(new Vector3(pos.X + dW / 2f - wallT / 2f, pos.Y, colCZ), new Vector3(wallT, dD, dH), SIDING_COLOR, "Dormer Side R");
+
+            // ── 4-piece exterior casing ─────────────────────────────────────────
+
+            float dcy = faceY - CASING_T / 2f;   // exterior face of dormer casing
+            RezBox(new Vector3(pos.X,                       dcy, winCZ + winH / 2f + CASING_W / 2f), new Vector3(winW + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, "Dormer Window Casing Top");
+            RezBox(new Vector3(pos.X,                       dcy, winCZ - winH / 2f - CASING_W / 2f), new Vector3(winW + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, "Dormer Window Casing Sill");
+            RezBox(new Vector3(pos.X - winW / 2f - CASING_W / 2f, dcy, winCZ),                       new Vector3(CASING_W, CASING_T, winH),                 TRIM_COLOR, "Dormer Window Casing Left");
+            RezBox(new Vector3(pos.X + winW / 2f + CASING_W / 2f, dcy, winCZ),                       new Vector3(CASING_W, CASING_T, winH),                 TRIM_COLOR, "Dormer Window Casing Right");
+
+            // ── Gabled roof — 22° pitch matching main house ─────────────────────
+            float pitchDeg = 22f;
+            float halfSpan = dD / 2f + 0.15f;   // slight front/rear overhang
+            float riseZ    = halfSpan * MathF.Tan(pitchDeg * MathF.PI / 180f);
+            float pCtrZ    = topZ + riseZ / 2f;
+
+            RezTiltedRoofPanel(
+                center:   new Vector3(pos.X, pos.Y - halfSpan / 2f, pCtrZ),
+                size:     new Vector3(dW + 0.25f, halfSpan, 0.12f),
+                pitchDeg: pitchDeg, forward: true,  label: "Dormer Roof Front");
+            RezTiltedRoofPanel(
+                center:   new Vector3(pos.X, pos.Y + halfSpan / 2f, pCtrZ),
+                size:     new Vector3(dW + 0.25f, halfSpan, 0.12f),
+                pitchDeg: pitchDeg, forward: false, label: "Dormer Roof Rear");
+
+            // Ridge cap
+            RezBox(new Vector3(pos.X, pos.Y, topZ + riseZ), new Vector3(dW + 0.3f, 0.2f, 0.15f), ROOF_COLOR, "Dormer Ridge");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -568,31 +728,47 @@ namespace SLHouseBuilder
             float winZ  = WALL_BASE + FLOOR1_H * 0.5f;   // window center at mid-wall
             float winH  = 1.6f;
 
-            // Front facade
-            RezWindow(    Offset(-5.5f, -7f, winZ), 2.2f, winH, "Bay Window Left");
-            RezWindow(    Offset(-7.0f, -7f, winZ), 1.0f, winH, "Bay Window Right");
+            // Front facade — suppress the inner casings between the two adjacent bay windows
+            // (they would overlap/clutter the gap between the windows)
+            RezWindow(    Offset(-5.5f, -7f, winZ), 2.2f, winH, "Bay Window Left",  suppressLeft: true);
+            RezWindow(    Offset(-7.0f, -7f, winZ), 1.0f, winH, "Bay Window Right", suppressRight: true);
             RezWindow(    Offset( 2.5f, -7f, winZ), 1.8f, winH, "Front Right Window");
 
-            // Rear facade
-            RezWindow(    Offset(-5f,  7f, winZ), 2.0f, winH, "Rear Left Window");
-            RezWindow(    Offset( 0f,  7f, winZ), 2.0f, winH, "Rear Center Window");
-            RezWindow(    Offset( 5f,  7f, winZ), 2.0f, winH, "Rear Right Window");
+            // Rear facade (extDir +1 = exterior is toward +Y)
+            RezWindow(    Offset(-5f,  7f, winZ), 2.0f, winH, "Rear Left Window",   extDir: +1f);
+            RezWindow(    Offset( 0f,  7f, winZ), 2.0f, winH, "Rear Center Window", extDir: +1f);
+            RezWindow(    Offset( 5f,  7f, winZ), 2.0f, winH, "Rear Right Window",  extDir: +1f);
 
             // Left side
             RezWindowSide(Offset(-9f, -3f, winZ), 1.4f, winH, "Left Side Window 1");
             RezWindowSide(Offset(-9f,  3f, winZ), 1.4f, winH, "Left Side Window 2");
         }
 
-        static void RezWindow(Vector3 center, float w, float h, string label)
+
+        // Rez a front/rear-facing window with 4-piece exterior casing.
+        // extDir:       -1 = exterior toward -Y (front wall), +1 = toward +Y (rear wall)
+        // suppressLeft / suppressRight: omit the side casing where two windows are adjacent
+        //   (prevents overlapping prims and fixes echo-matching ambiguity between close prims)
+        static void RezWindow(Vector3 center, float w, float h, string label,
+                              float extDir = -1f, bool suppressLeft = false, bool suppressRight = false)
         {
-            RezBox(new Vector3(center.X, center.Y,         center.Z), new Vector3(w,        0.05f, h),        WINDOW_COLOR, label + " Glass");
-            RezBox(new Vector3(center.X, center.Y - 0.02f, center.Z), new Vector3(w + 0.2f, 0.04f, h + 0.2f), TRIM_COLOR,  label + " Trim");
+            float cy = center.Y + extDir * CASING_T / 2f;   // casing center Y, proud of wall face
+            RezBox(new Vector3(center.X, cy, center.Z + h / 2f + CASING_W / 2f), new Vector3(w + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, label + " Casing Top");
+            RezBox(new Vector3(center.X, cy, center.Z - h / 2f - CASING_W / 2f), new Vector3(w + CASING_W * 2, CASING_T, CASING_W), TRIM_COLOR, label + " Casing Sill");
+            if (!suppressLeft)
+                RezBox(new Vector3(center.X - w / 2f - CASING_W / 2f, cy, center.Z), new Vector3(CASING_W, CASING_T, h), TRIM_COLOR, label + " Casing Left");
+            if (!suppressRight)
+                RezBox(new Vector3(center.X + w / 2f + CASING_W / 2f, cy, center.Z), new Vector3(CASING_W, CASING_T, h), TRIM_COLOR, label + " Casing Right");
         }
 
+        // Rez a side-facing window (left wall, exterior toward -X) with 4-piece casing.
         static void RezWindowSide(Vector3 center, float w, float h, string label)
         {
-            RezBox(new Vector3(center.X,         center.Y, center.Z), new Vector3(0.05f, w,        h),        WINDOW_COLOR, label + " Glass");
-            RezBox(new Vector3(center.X - 0.02f, center.Y, center.Z), new Vector3(0.04f, w + 0.2f, h + 0.2f), TRIM_COLOR,  label + " Trim");
+            float cx = center.X - CASING_T / 2f;   // casing center X, proud of left-wall exterior face
+            RezBox(new Vector3(cx, center.Y,                     center.Z + h / 2f + CASING_W / 2f), new Vector3(CASING_T, w + CASING_W * 2, CASING_W), TRIM_COLOR, label + " Casing Top");
+            RezBox(new Vector3(cx, center.Y,                     center.Z - h / 2f - CASING_W / 2f), new Vector3(CASING_T, w + CASING_W * 2, CASING_W), TRIM_COLOR, label + " Casing Sill");
+            RezBox(new Vector3(cx, center.Y - w / 2f - CASING_W / 2f, center.Z),                     new Vector3(CASING_T, CASING_W, h),                 TRIM_COLOR, label + " Casing Front");
+            RezBox(new Vector3(cx, center.Y + w / 2f + CASING_W / 2f, center.Z),                     new Vector3(CASING_T, CASING_W, h),                 TRIM_COLOR, label + " Casing Rear");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -602,16 +778,20 @@ namespace SLHouseBuilder
         {
             Console.WriteLine("[Builder] Doors…");
 
-            float wallT = 0.22f;
             float doorH = 2.4f;
             float doorZ = WALL_BASE + doorH / 2f;   // bottom at foundation top
 
-            // Front door
-            RezBox(Offset(-2.5f, -7f,        doorZ), new Vector3(1.0f,        wallT + 0.02f, doorH),       DOOR_COLOR, "Front Door");
-            RezBox(Offset(-2.5f, -7f - 0.04f, doorZ), new Vector3(1.3f,       0.04f,         doorH + 0.4f), TRIM_COLOR, "Front Door Frame");
+            // ── Front door — 3-piece exterior casing (no floor sill) ──────────────
+            float fdc = -7f - CASING_T / 2f;   // local Y of exterior casing center
+            RezBox(Offset(-2.5f,            fdc, WALL_BASE + doorH + CASING_W / 2f), new Vector3(1.0f + CASING_W * 2f, CASING_T, CASING_W), TRIM_COLOR, "Front Door Casing Top");
+            RezBox(Offset(-3.0f - CASING_W / 2f, fdc, doorZ),                        new Vector3(CASING_W, CASING_T, doorH),                 TRIM_COLOR, "Front Door Casing Left");
+            RezBox(Offset(-2.0f + CASING_W / 2f, fdc, doorZ),                        new Vector3(CASING_W, CASING_T, doorH),                 TRIM_COLOR, "Front Door Casing Right");
 
-            // Interior garage door
-            RezBox(Offset(9f, -1f, WALL_BASE + doorH / 2f), new Vector3(0.05f, 0.9f, doorH), DOOR_COLOR, "Garage Interior Door");
+            // ── Interior garage door — 3-piece casing (house side) ────────────────
+            float gcc = 9f + CASING_T / 2f;    // local X of house-side casing center
+            RezBox(Offset(gcc, -1f,              WALL_BASE + doorH + CASING_W / 2f), new Vector3(CASING_T, 0.9f + CASING_W * 2f, CASING_W), TRIM_COLOR, "Garage Door Casing Top");
+            RezBox(Offset(gcc, -1f - 0.45f - CASING_W / 2f, WALL_BASE + doorH / 2f), new Vector3(CASING_T, CASING_W, doorH),                TRIM_COLOR, "Garage Door Casing Left");
+            RezBox(Offset(gcc, -1f + 0.45f + CASING_W / 2f, WALL_BASE + doorH / 2f), new Vector3(CASING_T, CASING_W, doorH),                TRIM_COLOR, "Garage Door Casing Right");
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -621,18 +801,42 @@ namespace SLHouseBuilder
         {
             Console.WriteLine("[Builder] Interior walls…");
 
-            float wallH = FLOOR1_H;
+            float wallH = FLOOR1_H - 0.25f;   // 3.75 m — slightly shorter so tops clear the ceiling deck
             float wallT = 0.15f;
             float wallZ = WALL_BASE + wallH / 2f;  // bottom at foundation top
 
-            RezBox(Offset( 2f,   0,    wallZ), new Vector3(wallT, 14f, wallH), TRIM_COLOR, "Interior - Center Spine Wall");
-            RezBox(Offset(-4f,  -2f,   wallZ), new Vector3(5f,  wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
-            RezBox(Offset( 5f,   2f,   wallZ), new Vector3(7f,  wallT,  wallH), TRIM_COLOR, "Interior - Kitchen Rear");
-            RezBox(Offset(-4.5f, 3.5f, wallZ), new Vector3(9f,  wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
-            RezBox(Offset( 5.5f, 0,    wallZ), new Vector3(wallT, 6f,   wallH), TRIM_COLOR, "Interior - Bath-Laundry Wall");
+            // Spans trimmed ~0.2 m per end so edges don't clip through exterior walls
+            RezBox(Offset( 2f,   0,    wallZ), new Vector3(wallT, 13.5f, wallH), TRIM_COLOR, "Interior - Center Spine Wall");
+            RezBox(Offset(-4f,  -2f,   wallZ), new Vector3(4.6f, wallT,  wallH), TRIM_COLOR, "Interior - Living-Dining Divider");
+            RezBox(Offset( 5f,   2f,   wallZ), new Vector3(6.6f, wallT,  wallH), TRIM_COLOR, "Interior - Kitchen Rear");
+            RezBox(Offset(-4.5f, 3.5f, wallZ), new Vector3(8.6f, wallT,  wallH), TRIM_COLOR, "Interior - Master Divider");
+            RezBox(Offset( 5.5f, 0,    wallZ), new Vector3(wallT, 5.6f,  wallH), TRIM_COLOR, "Interior - Bath-Laundry Wall");
 
             // Staircase landing
             RezBox(Offset(2.5f, -3f, WALL_BASE + wallH * 0.3f), new Vector3(2.5f, 3.5f, 0.12f), FOUNDATION, "Staircase Landing");
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        //  SETTLED POSITION  — polls SimPosition until Z > 1 m (terrain level)
+        //  After login or a failed/timed-out teleport the client can return Z=0
+        //  before the first AgentUpdate echo arrives from the sim.  All prims are
+        //  rezzed relative to origin.Z, so a stale Z=0 causes every expected
+        //  center to be wrong and all echo matches to fail.
+        // ─────────────────────────────────────────────────────────────────────────
+        static Vector3 GetSettledPosition(int maxWaitMs = 10_000)
+        {
+            var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+            while (DateTime.UtcNow < deadline)
+            {
+                var pos = client.Self.SimPosition;
+                if (pos.Z > 1f) return pos;
+                Console.WriteLine($"[Builder] Waiting for valid Z (currently {pos.Z:F2})…");
+                Thread.Sleep(500);
+            }
+            var final = client.Self.SimPosition;
+            if (final.Z <= 1f)
+                Console.WriteLine($"[Builder] Warning: Z still low ({final.Z:F2}) after waiting — build positions may be wrong.");
+            return final;
         }
 
         // ═════════════════════════════════════════════════════════════════════════
@@ -648,13 +852,13 @@ namespace SLHouseBuilder
         {
             var prim = BuildPrimData(color);
             prim.PathScaleY = 0.0f;  // collapse Y to 0 at top of path — triangular prism (gable shape)
-            RezAndSetPrim(prim, pos, size, Quaternion.Identity, description);
+            RezAndSetPrim(prim, pos, size, Quaternion.Identity, color, description);
         }
 
         static void RezPrim(Vector3 pos, Vector3 size, Quaternion rot, Color4 color, string description)
         {
             var prim = BuildPrimData(color);
-            RezAndSetPrim(prim, pos, size, rot, description);
+            RezAndSetPrim(prim, pos, size, rot, color, description);
         }
 
         static Primitive.ConstructionData BuildPrimData(Color4 color)
@@ -682,7 +886,7 @@ namespace SLHouseBuilder
             return cd;
         }
 
-        static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, string description)
+        static void RezAndSetPrim(Primitive.ConstructionData cd, Vector3 pos, Vector3 size, Quaternion rot, Color4 color, string description)
         {
             // Compose build orientation into every prim rotation
             if (buildYaw != 0f)
@@ -693,7 +897,7 @@ namespace SLHouseBuilder
             Vector3 bottomPos = new(pos.X, pos.Y, pos.Z - size.Z / 2f);
 
             // Register the expected center + scale so OnPrimEcho can match the server reply.
-            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description)); }
+            lock (primLock) { pendingPrims.Add(new PendingPrim(pos, size, description, color)); }
 
             client.Self.Movement.SendUpdate();
             client.Objects.AddPrim(client.Network.CurrentSim, cd, UUID.Zero, bottomPos, size, rot);
@@ -718,10 +922,10 @@ namespace SLHouseBuilder
         // ─────────────────────────────────────────────────────────────────────────
         //  LOGIN CALLBACKS
         // ─────────────────────────────────────────────────────────────────────────
-        static void OnLoginProgress(object sender, LoginProgressEventArgs e)
+        static void OnLoginProgress(object? sender, LoginProgressEventArgs e)
             => Console.WriteLine($"[Login] {e.Status}: {e.Message}");
 
-        static void OnSimConnected(object sender, SimConnectedEventArgs e)
+        static void OnSimConnected(object? sender, SimConnectedEventArgs e)
             => Console.WriteLine($"[Network] Connected to sim: {e.Simulator.Name}");
     }
 }
