@@ -539,13 +539,15 @@ namespace SLHouseBuilder
 
             float wallT = 0.2f;
 
-            // Floor deck — split into 4 pieces to leave a staircase opening (X=[0,2], Y=[-4,-1.5])
+            // Floor deck — 5 pieces leaving the L-staircase opening (X=[0.70,2.05], Y=[-7,-2.35])
+            // Opening runs from the front wall all the way up to where leg 2 exits at the second floor.
             float deckZ = FLOOR1_TOP + FLOOR2_DECK_H / 2f;
             float dkH   = FLOOR2_DECK_H;
-            RezBox(Offset( 0f,    2.75f, deckZ), new Vector3(18f, 8.5f, dkH), FOUNDATION, "Second Floor Deck - Rear");
-            RezBox(Offset( 0f,   -5.5f,  deckZ), new Vector3(18f, 3.0f, dkH), FOUNDATION, "Second Floor Deck - Front");
-            RezBox(Offset(-4.5f, -2.75f, deckZ), new Vector3(9.0f, 2.5f, dkH), FOUNDATION, "Second Floor Deck - Left");
-            RezBox(Offset( 5.5f, -2.75f, deckZ), new Vector3(7.0f, 2.5f, dkH), FOUNDATION, "Second Floor Deck - Right");
+            RezBox(Offset( 0f,     2.325f, deckZ), new Vector3(18f,   9.35f, dkH), FOUNDATION, "Second Floor Deck - Rear");
+            RezBox(Offset(-4.15f, -6.1f,   deckZ), new Vector3(9.7f,  1.8f,  dkH), FOUNDATION, "Second Floor Deck - Front Left");
+            RezBox(Offset( 5.525f,-6.1f,   deckZ), new Vector3(6.95f, 1.8f,  dkH), FOUNDATION, "Second Floor Deck - Front Right");
+            RezBox(Offset(-4.15f, -3.775f, deckZ), new Vector3(9.7f,  2.85f, dkH), FOUNDATION, "Second Floor Deck - Mid Left");
+            RezBox(Offset( 5.525f,-3.775f, deckZ), new Vector3(6.95f, 2.85f, dkH), FOUNDATION, "Second Floor Deck - Mid Right");
 
             // Knee walls
             float kneeZ = FLOOR2_BASE + KNEE_H / 2f;
@@ -842,8 +844,8 @@ namespace SLHouseBuilder
             float wallZ = WALL_BASE + wallH / 2f;  // bottom at foundation top
 
             // Spine wall — three pieces:
-            //   Front section: Y=-6.75 → -1.5  (runs alongside the staircase, enclosing it on the right)
-            //   Door opening:  Y=-1.5  → -0.5  (1 m passage from stair hall into upper floor)
+            //   Front section: Y=-6.75 → -1.5  (staircase runs along its left/west face, X<2)
+            //   Door opening:  Y=-1.5  → -0.5  (1 m passage from stair landing into upper floor)
             //   Rear section:  Y=-0.5  →  6.75
             RezBox(Offset( 2f,  -4.125f, wallZ), new Vector3(wallT, 5.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Front");
             RezBox(Offset( 2f,   3.125f, wallZ), new Vector3(wallT, 7.25f, wallH), TRIM_COLOR, "Interior - Spine Wall Rear");
@@ -854,29 +856,52 @@ namespace SLHouseBuilder
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        //  STAIRCASE
-        //  10 cumulative-box steps running in +Y (south→north), centered at X=1.
-        //  Opening in spine wall and second-floor deck: X=[0,2], Y=[-4,-1.5].
-        //  Each step is a solid box from WALL_BASE up to its tread face so the
-        //  staircase looks like a rising pyramid from the side.
+        //  STAIRCASE  (L-shaped)
+        //  Enter to the RIGHT of the front door (viewed from outside), bottom step
+        //  left edge at X=-2.0 (flush with door right edge, no overlap), Y center -6.15.
+        //  Leg 1 runs +X (along the front wall area) for 5 steps.
+        //  RIGHT turn sends Leg 2 in +Y (along the spine wall, X≈1.40) for 5 steps.
+        //  Second-floor deck opening: X=[0.70, 2.05], Y=[-7, -2.35] (full height to front wall).
+        //  Treads: 0.55 m deep × 1.3 m wide.
         // ─────────────────────────────────────────────────────────────────────────
         static void BuildStaircase()
         {
             Console.WriteLine("[Builder] Staircase…");
 
-            const int   STEPS   = 10;
-            const float STEP_W  = 1.2f;                 // tread width  (X)
-            const float STEP_D  = 0.25f;                // tread depth  (Y)
-            const float STEP_H  = FLOOR1_H / STEPS;     // 0.40 m rise per step
-            const float STAIR_X = 1.0f;                 // center X (left of spine wall)
-            const float STAIR_Y0 = -4.0f;               // local Y of bottom-step front face
+            const int   STEPS    = 10;
+            const int   STEPS_L1 = 5;                   // steps in leg 1 (+X, along front wall area)
+            const int   STEPS_L2 = STEPS - STEPS_L1;    // steps in leg 2 (+Y, along spine wall)
+            const float STEP_H   = FLOOR1_H / STEPS;    // 0.40 m rise per step
+            const float STEP_D   = 0.55f;               // tread depth
+            const float STEP_W   = 1.3f;                // tread width
 
-            for (int i = 0; i < STEPS; i++)
+            // Leg 1 — bottom step just right of front door, climbs in +X toward spine wall.
+            // Last step extends to the spine wall interior face (X=1.925) to fill the L-corner.
+            const float STAIR_X0      = -2.0f;    // left edge of first step, flush with door right edge (X=-2.0), no overlap
+            const float STAIR_Y_L1   = -6.15f;   // Y center of leg 1 treads (front edge flush with interior wall face at Y=-6.8)
+            const float SPINE_WALL_IX = 1.925f;   // interior face of spine wall (X=2.0 - wallT/2)
+
+            for (int i = 0; i < STEPS_L1; i++)
             {
-                float treadY = STAIR_Y0 + i * STEP_D + STEP_D / 2f;   // Y center of this tread
-                float boxH   = (i + 1) * STEP_H;                       // cumulative height
-                float boxZ   = WALL_BASE + boxH / 2f;                  // Z center (base at WALL_BASE)
-                RezBox(Offset(STAIR_X, treadY, boxZ), new Vector3(STEP_W, STEP_D, boxH), FOUNDATION, $"Stair Step {i + 1}");
+                float stepLeft = STAIR_X0 + i * STEP_D;
+                float stepW    = (i == STEPS_L1 - 1) ? (SPINE_WALL_IX - stepLeft) : STEP_D;
+                float treadX   = stepLeft + stepW / 2f;
+                float boxH     = (i + 1) * STEP_H;
+                float boxZ     = WALL_BASE + boxH / 2f;
+                RezBox(Offset(treadX, STAIR_Y_L1, boxZ), new Vector3(stepW, STEP_W, boxH), FOUNDATION, $"Stair Step L1-{i + 1}");
+            }
+
+            const float X_CORNER    = STAIR_X0 + STEPS_L1 * STEP_D;  // right edge of normal leg 1 steps = 0.75
+            const float STAIR_X_L2  = X_CORNER + STEP_W / 2f;         // X center of leg 2 = 1.40
+            const float STAIR_Y0_L2 = STAIR_Y_L1 + STEP_W / 2f;       // Y front face of leg 2 = -5.5
+
+            // Leg 2 — right turn at corner near spine wall, climbs in +Y direction
+            for (int j = 0; j < STEPS_L2; j++)
+            {
+                float treadY = STAIR_Y0_L2 + j * STEP_D + STEP_D / 2f;  // stepping toward +Y
+                float boxH   = (STEPS_L1 + j + 1) * STEP_H;
+                float boxZ   = WALL_BASE + boxH / 2f;
+                RezBox(Offset(STAIR_X_L2, treadY, boxZ), new Vector3(STEP_W, STEP_D, boxH), FOUNDATION, $"Stair Step L2-{j + 1}");
             }
         }
 
