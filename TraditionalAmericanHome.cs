@@ -549,7 +549,7 @@ namespace SLHouseBuilder
             RezBox(Offset(-4.15f, -3.775f, deckZ), new Vector3(9.7f,  2.85f, dkH), FOUNDATION, "Second Floor Deck - Mid Left");
             RezBox(Offset( 5.525f,-3.775f, deckZ), new Vector3(6.95f, 2.85f, dkH), FOUNDATION, "Second Floor Deck - Mid Right");
             // Cap the gap where the deck opening meets the front wall (opening X=[0.70,2.05] at Y=-7)
-            RezBox(Offset(1.375f, -6.9f, deckZ), new Vector3(1.35f, 0.2f, dkH), SIDING_COLOR, "Second Floor Deck - Front Wall Cap");
+            RezBox(Offset(1.375f, -6.9f, deckZ), new Vector3(1.35f, 0.2f, dkH), FOUNDATION, "Second Floor Deck - Front Wall Cap");
 
             // Knee walls
             float kneeZ = FLOOR2_BASE + KNEE_H / 2f;
