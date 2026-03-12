@@ -12,7 +12,7 @@ A C# bot that automatically builds a traditional American story-and-a-half home 
 - Ceiling lights with SL light property and glow
 - Exterior sign
 
-**Prim budget:** ~145 prims
+**Prim budget:** ~160 prims
 
 ## Requirements
 
@@ -49,15 +49,27 @@ dotnet run
 
 The house is built relative to the bot's current position and orientation.
 
-### Build at a friend's location
+### JSON build mode
 
-Set `FriendName` in `credentials.json` to the display name of an online friend, then run:
+Building definitions can be stored in `.jsonc` files (JSON with comments). To build from a file:
 
 ```sh
-dotnet run -- --at-friend
+dotnet run -- json                          # loads TraditionalAmericanHome.jsonc
+dotnet run -- json MyBuilding.jsonc         # loads a specific file
 ```
 
-The bot will teleport to the friend, orient toward them, and build the house at that location.
+The JSONC format supports named constants, derived expressions (e.g. `"WALL_BASE + FLOOR1_H / 2"`), a color palette, and one or more linksets. See `TraditionalAmericanHome.jsonc` for a full example.
+
+### Build at a friend's location
+
+Set `FriendName` in `credentials.json` to the display name of an online friend, then pass `--at-friend`:
+
+```sh
+dotnet run -- --at-friend                   # legacy build at friend
+dotnet run -- json --at-friend              # JSON build at friend
+```
+
+The bot will teleport to the friend, orient toward them, and build at that location.
 
 ## How it works
 

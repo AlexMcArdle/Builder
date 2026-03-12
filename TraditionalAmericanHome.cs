@@ -27,7 +27,7 @@ using OpenMetaverse;
 
 namespace SLHouseBuilder
 {
-    class TraditionalAmericanHome
+    partial class TraditionalAmericanHome
     {
         // ── Bot credentials — loaded from credentials.json ───────────────────────
         private const string LOGINURI  = Settings.AGNI_LOGIN_SERVER;
@@ -91,7 +91,7 @@ namespace SLHouseBuilder
         private static readonly Color4 CHIMNEY_COLOR = new Color4(0.60f, 0.35f, 0.28f, 1f);
 
         // ─────────────────────────────────────────────────────────────────────────
-        static async Task Main(string[] args)
+        public static async Task RunLegacyAsync(string[] args)
         {
             bool atFriend = Array.Exists(args, a => a.Equals("--at-friend", StringComparison.OrdinalIgnoreCase));
 

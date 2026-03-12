@@ -1,0 +1,1207 @@
+{
+  "name": "TraditionalAmericanHome",
+  "constants": {
+    "FOUNDATION_H": 0.5,
+    "FLOOR1_H": 4.0,
+    "FLOOR2_DECK_H": 0.2,
+    "KNEE_H": 2.0,
+    "GARAGE_H": 3.5,
+    "CASING_W": 0.10,
+    "CASING_T": 0.04
+  },
+  "derived": {
+    "WALL_BASE": "FOUNDATION_H",
+    "FLOOR1_TOP": "WALL_BASE + FLOOR1_H",
+    "FLOOR2_BASE": "FLOOR1_TOP + FLOOR2_DECK_H",
+    "ROOF_BASE": "FLOOR2_BASE + KNEE_H"
+  },
+  "palette": {
+    "siding":      [0.93, 0.87, 0.78, 1.0],
+    "trim":        [0.95, 0.95, 0.92, 1.0],
+    "roof":        [0.22, 0.20, 0.20, 1.0],
+    "garage":      [0.93, 0.87, 0.78, 1.0],
+    "foundation":  [0.55, 0.54, 0.52, 1.0],
+    "chimney":     [0.60, 0.35, 0.28, 1.0],
+    "light_warm":  [1.00, 0.97, 0.88, 1.0],
+    "garage_door": [0.82, 0.82, 0.82, 1.0],
+    "dark_gray":   [0.30, 0.30, 0.30, 1.0],
+    "white":       [1.00, 1.00, 1.00, 1.0]
+  },
+  "linksets": [
+    {
+      "name": "main_structure",
+      "root": "Foundation - Main",
+      "prims": [
+
+        // ── FOUNDATION ────────────────────────────────────────────────────────
+        {
+          "name": "Foundation - Main",
+          "type": "box",
+          "position": [0, 0, "FOUNDATION_H / 2"],
+          "size": [18, 14, "FOUNDATION_H"],
+          "color": "foundation"
+        },
+        {
+          "name": "Foundation - Garage",
+          "type": "box",
+          "position": [13.5, -1, "FOUNDATION_H / 2"],
+          "size": [9, 12, "FOUNDATION_H"],
+          "color": "foundation"
+        },
+
+        // ── FIRST FLOOR WALLS ─────────────────────────────────────────────────
+        // Front wall columns
+        {
+          "name": "Wall - Front Col 1",
+          "type": "box",
+          "position": [-8.25, -6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [1.5, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Front Col 2",
+          "type": "box",
+          "position": [-3.7, -6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [1.4, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Front Col 3",
+          "type": "box",
+          "position": [0.05, -6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [4.1, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Front Col 4",
+          "type": "box",
+          "position": [6.45, -6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [5.1, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        // Front wall bay window sill & header
+        {
+          "name": "Wall - Front Bay Sill",
+          "type": "box",
+          "position": [-5.95, -6.9, 1.1],
+          "size": [3.1, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Front Bay Header",
+          "type": "box",
+          "position": [-5.95, -6.9, 3.9],
+          "size": [3.1, 0.2, 1.2],
+          "color": "siding"
+        },
+        // Front door header
+        {
+          "name": "Wall - Front Door Header",
+          "type": "box",
+          "position": [-2.5, -6.9, 3.7],
+          "size": [1.0, 0.2, 1.6],
+          "color": "siding"
+        },
+        // Front-right window sill & header
+        {
+          "name": "Wall - Front Win Sill",
+          "type": "box",
+          "position": [3.0, -6.9, 1.1],
+          "size": [1.8, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Front Win Header",
+          "type": "box",
+          "position": [3.0, -6.9, 3.9],
+          "size": [1.8, 0.2, 1.2],
+          "color": "siding"
+        },
+        // Rear wall columns
+        {
+          "name": "Wall - Rear Col 1",
+          "type": "box",
+          "position": [-7.5, 6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [3.0, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Col 2",
+          "type": "box",
+          "position": [-2.5, 6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [3.0, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Col 3",
+          "type": "box",
+          "position": [2.5, 6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [3.0, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Col 4",
+          "type": "box",
+          "position": [7.5, 6.9, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [3.0, 0.2, "FLOOR1_H"],
+          "color": "siding"
+        },
+        // Rear windows: sill + header, 3 windows at X=-5, 0, +5
+        {
+          "name": "Wall - Rear Win Sill",
+          "type": "box",
+          "position": [-5, 6.9, 1.1],
+          "size": [2.0, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Win Header",
+          "type": "box",
+          "position": [-5, 6.9, 3.9],
+          "size": [2.0, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Win Sill",
+          "type": "box",
+          "position": [0, 6.9, 1.1],
+          "size": [2.0, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Win Header",
+          "type": "box",
+          "position": [0, 6.9, 3.9],
+          "size": [2.0, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Win Sill",
+          "type": "box",
+          "position": [5, 6.9, 1.1],
+          "size": [2.0, 0.2, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Rear Win Header",
+          "type": "box",
+          "position": [5, 6.9, 3.9],
+          "size": [2.0, 0.2, 1.2],
+          "color": "siding"
+        },
+        // Left wall columns
+        {
+          "name": "Wall - Left Col 1",
+          "type": "box",
+          "position": [-8.9, -5.35, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [0.2, 3.3, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Left Col 2",
+          "type": "box",
+          "position": [-8.9, 0, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [0.2, 4.6, "FLOOR1_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Left Col 3",
+          "type": "box",
+          "position": [-8.9, 5.35, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [0.2, 3.3, "FLOOR1_H"],
+          "color": "siding"
+        },
+        // Left windows: sill + header, 2 windows at Y=-3, +3
+        {
+          "name": "Wall - Left Win Sill",
+          "type": "box",
+          "position": [-8.9, -3, 1.1],
+          "size": [0.2, 1.4, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Left Win Header",
+          "type": "box",
+          "position": [-8.9, -3, 3.9],
+          "size": [0.2, 1.4, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Left Win Sill",
+          "type": "box",
+          "position": [-8.9, 3, 1.1],
+          "size": [0.2, 1.4, 1.2],
+          "color": "siding"
+        },
+        {
+          "name": "Wall - Left Win Header",
+          "type": "box",
+          "position": [-8.9, 3, 3.9],
+          "size": [0.2, 1.4, 1.2],
+          "color": "siding"
+        },
+        // Right wall (solid)
+        {
+          "name": "Wall - Right",
+          "type": "box",
+          "position": [8.9, 0, "WALL_BASE + FLOOR1_H / 2"],
+          "size": [0.2, 14, "FLOOR1_H"],
+          "color": "siding"
+        },
+
+        // ── GARAGE ────────────────────────────────────────────────────────────
+        {
+          "name": "Garage Front - Left Edge",
+          "type": "box",
+          "position": [9.6, -6.9, "WALL_BASE + GARAGE_H / 2"],
+          "size": [1.0, 0.2, "GARAGE_H"],
+          "color": "garage"
+        },
+        {
+          "name": "Garage Front - Center Post",
+          "type": "box",
+          "position": [13.5, -6.9, "WALL_BASE + GARAGE_H / 2"],
+          "size": [0.5, 0.2, "GARAGE_H"],
+          "color": "garage"
+        },
+        {
+          "name": "Garage Front - Right Edge",
+          "type": "box",
+          "position": [17.4, -6.9, "WALL_BASE + GARAGE_H / 2"],
+          "size": [1.0, 0.2, "GARAGE_H"],
+          "color": "garage"
+        },
+        {
+          "name": "Garage Door Header",
+          "type": "box",
+          "position": [13.5, -6.9, "WALL_BASE + GARAGE_H - 0.15"],
+          "size": [7.8, 0.2, 0.3],
+          "color": "trim"
+        },
+        {
+          "name": "Garage Door Left",
+          "type": "box",
+          "position": [11.675, -6.85, 2.1],
+          "size": [3.25, 0.05, 3.2],
+          "color": "garage_door"
+        },
+        {
+          "name": "Garage Door Right",
+          "type": "box",
+          "position": [15.325, -6.85, 2.1],
+          "size": [3.25, 0.05, 3.2],
+          "color": "garage_door"
+        },
+        {
+          "name": "Garage Rear Wall",
+          "type": "box",
+          "position": [13.5, 4.9, "WALL_BASE + GARAGE_H / 2"],
+          "size": [9, 0.2, "GARAGE_H"],
+          "color": "garage"
+        },
+        {
+          "name": "Garage Side Wall",
+          "type": "box",
+          "position": [17.9, -1, "WALL_BASE + GARAGE_H / 2"],
+          "size": [0.2, 12, "GARAGE_H"],
+          "color": "garage"
+        },
+        {
+          "name": "Garage Interior Shared Wall",
+          "type": "box",
+          "position": [9.1, -1, "WALL_BASE + GARAGE_H / 2"],
+          "size": [0.2, 12, "GARAGE_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Garage Ceiling",
+          "type": "box",
+          "position": [13.5, -1, "WALL_BASE + GARAGE_H - 0.15"],
+          "size": [9, 12, 0.2],
+          "color": "foundation"
+        },
+
+        // ── SECOND FLOOR DECK ─────────────────────────────────────────────────
+        {
+          "name": "Second Floor Deck - Rear",
+          "type": "box",
+          "position": [0, 2.325, "FLOOR1_TOP + FLOOR2_DECK_H / 2"],
+          "size": [18, 9.35, "FLOOR2_DECK_H"],
+          "color": "foundation"
+        },
+        {
+          "name": "Second Floor Deck - Front Left",
+          "type": "box",
+          "position": [-4.15, -6.1, "FLOOR1_TOP + FLOOR2_DECK_H / 2"],
+          "size": [9.7, 1.8, "FLOOR2_DECK_H"],
+          "color": "foundation"
+        },
+        {
+          "name": "Second Floor Deck - Front Right",
+          "type": "box",
+          "position": [5.525, -6.1, "FLOOR1_TOP + FLOOR2_DECK_H / 2"],
+          "size": [6.95, 1.8, "FLOOR2_DECK_H"],
+          "color": "foundation"
+        },
+        {
+          "name": "Second Floor Deck - Mid Left",
+          "type": "box",
+          "position": [-4.15, -3.775, "FLOOR1_TOP + FLOOR2_DECK_H / 2"],
+          "size": [9.7, 2.85, "FLOOR2_DECK_H"],
+          "color": "foundation"
+        },
+        {
+          "name": "Second Floor Deck - Mid Right",
+          "type": "box",
+          "position": [5.525, -3.775, "FLOOR1_TOP + FLOOR2_DECK_H / 2"],
+          "size": [6.95, 2.85, "FLOOR2_DECK_H"],
+          "color": "foundation"
+        },
+        {
+          "name": "Second Floor Deck - Front Wall Cap",
+          "type": "box",
+          "position": [1.375, -6.9, "FLOOR1_TOP + FLOOR2_DECK_H / 2"],
+          "size": [1.35, 0.2, "FLOOR2_DECK_H"],
+          "color": "foundation"
+        },
+
+        // ── KNEE WALLS & GABLE BASES ──────────────────────────────────────────
+        {
+          "name": "Knee Wall - Front",
+          "type": "box",
+          "position": [0, -6.9, "FLOOR2_BASE + KNEE_H / 2"],
+          "size": [18, 0.2, "KNEE_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Knee Wall - Rear",
+          "type": "box",
+          "position": [0, 6.9, "FLOOR2_BASE + KNEE_H / 2"],
+          "size": [18, 0.2, "KNEE_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Gable Base - Left",
+          "type": "box",
+          "position": [-8.9, 0, "FLOOR2_BASE + KNEE_H / 2"],
+          "size": [0.2, 14, "KNEE_H"],
+          "color": "siding"
+        },
+        {
+          "name": "Gable Base - Right",
+          "type": "box",
+          "position": [8.9, 0, "FLOOR2_BASE + KNEE_H / 2"],
+          "size": [0.2, 14, "KNEE_H"],
+          "color": "siding"
+        },
+        // Gable triangles
+        {
+          "name": "Gable - Left",
+          "type": "triangle",
+          "position": [-8.9, 0, "ROOF_BASE + 3.1 / 2"],
+          "size": [0.2, 14, 3.1],
+          "color": "siding"
+        },
+        {
+          "name": "Gable - Right",
+          "type": "triangle",
+          "position": [8.9, 0, "ROOF_BASE + 3.1 / 2"],
+          "size": [0.2, 14, 3.1],
+          "color": "siding"
+        },
+
+        // ── DORMERS ───────────────────────────────────────────────────────────
+        // Dormer 1 (lx=-4, ly=-6.5, lz=7.2)
+        {
+          "name": "Dormer Front L",
+          "type": "box",
+          "position": [-4.85, -7.125, 8.0],
+          "size": [0.7, 0.15, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Front R",
+          "type": "box",
+          "position": [-3.15, -7.125, 8.0],
+          "size": [0.7, 0.15, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Sill",
+          "type": "box",
+          "position": [-4, -7.125, 7.407],
+          "size": [1.0, 0.15, 0.414],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Header",
+          "type": "box",
+          "position": [-4, -7.125, 8.657],
+          "size": [1.0, 0.15, 0.286],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Side L",
+          "type": "box",
+          "position": [-5.125, -6.5, 8.0],
+          "size": [0.15, 1.4, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Side R",
+          "type": "box",
+          "position": [-2.875, -6.5, 8.0],
+          "size": [0.15, 1.4, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Window Casing Top",
+          "type": "box",
+          "position": [-4, -7.22, 8.564],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Window Casing Sill",
+          "type": "box",
+          "position": [-4, -7.22, 7.564],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Window Casing Left",
+          "type": "box",
+          "position": [-4.55, -7.22, 8.064],
+          "size": [0.1, 0.04, 0.9],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Window Casing Right",
+          "type": "box",
+          "position": [-3.45, -7.22, 8.064],
+          "size": [0.1, 0.04, 0.9],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Roof Front",
+          "type": "box",
+          "position": [-4, -6.925, 8.9717],
+          "size": [2.65, 0.85, 0.12],
+          "rotation": [22, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Dormer Roof Rear",
+          "type": "box",
+          "position": [-4, -6.075, 8.9717],
+          "size": [2.65, 0.85, 0.12],
+          "rotation": [-22, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Dormer Ridge",
+          "type": "box",
+          "position": [-4, -6.5, 9.1434],
+          "size": [2.7, 0.2, 0.15],
+          "color": "roof"
+        },
+        // Dormer 2 (lx=4, ly=-6.5, lz=7.2)
+        {
+          "name": "Dormer Front L",
+          "type": "box",
+          "position": [3.15, -7.125, 8.0],
+          "size": [0.7, 0.15, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Front R",
+          "type": "box",
+          "position": [4.85, -7.125, 8.0],
+          "size": [0.7, 0.15, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Sill",
+          "type": "box",
+          "position": [4, -7.125, 7.407],
+          "size": [1.0, 0.15, 0.414],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Header",
+          "type": "box",
+          "position": [4, -7.125, 8.657],
+          "size": [1.0, 0.15, 0.286],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Side L",
+          "type": "box",
+          "position": [2.875, -6.5, 8.0],
+          "size": [0.15, 1.4, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Side R",
+          "type": "box",
+          "position": [5.125, -6.5, 8.0],
+          "size": [0.15, 1.4, 1.6],
+          "color": "siding"
+        },
+        {
+          "name": "Dormer Window Casing Top",
+          "type": "box",
+          "position": [4, -7.22, 8.564],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Window Casing Sill",
+          "type": "box",
+          "position": [4, -7.22, 7.564],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Window Casing Left",
+          "type": "box",
+          "position": [3.45, -7.22, 8.064],
+          "size": [0.1, 0.04, 0.9],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Window Casing Right",
+          "type": "box",
+          "position": [4.55, -7.22, 8.064],
+          "size": [0.1, 0.04, 0.9],
+          "color": "trim"
+        },
+        {
+          "name": "Dormer Roof Front",
+          "type": "box",
+          "position": [4, -6.925, 8.9717],
+          "size": [2.65, 0.85, 0.12],
+          "rotation": [22, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Dormer Roof Rear",
+          "type": "box",
+          "position": [4, -6.075, 8.9717],
+          "size": [2.65, 0.85, 0.12],
+          "rotation": [-22, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Dormer Ridge",
+          "type": "box",
+          "position": [4, -6.5, 9.1434],
+          "size": [2.7, 0.2, 0.15],
+          "color": "roof"
+        },
+
+        // ── MAIN ROOF ─────────────────────────────────────────────────────────
+        {
+          "name": "Roof Panel - Front",
+          "type": "box",
+          "position": [0, -3.8, "ROOF_BASE + 1.5"],
+          "size": [19.2, 8.5, 0.25],
+          "rotation": [22, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Roof Panel - Rear",
+          "type": "box",
+          "position": [0, 3.8, "ROOF_BASE + 1.5"],
+          "size": [19.2, 8.5, 0.25],
+          "rotation": [-22, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Roof Ridge Cap",
+          "type": "box",
+          "position": [0, 0, "ROOF_BASE + 3.1"],
+          "size": [19.2, 0.5, 0.3],
+          "color": "roof"
+        },
+
+        // ── GARAGE ROOF ───────────────────────────────────────────────────────
+        {
+          "name": "Garage Roof - Front",
+          "type": "box",
+          "position": [13.5, -4, 4.8039],
+          "size": [9.8, 6.4, 0.25],
+          "rotation": [15, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Garage Roof - Rear",
+          "type": "box",
+          "position": [13.5, 2, 4.8039],
+          "size": [9.8, 6.4, 0.25],
+          "rotation": [-15, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Garage Ridge Cap",
+          "type": "box",
+          "position": [13.5, -1, 5.6077],
+          "size": [9.8, 0.4, 0.25],
+          "color": "roof"
+        },
+        {
+          "name": "Garage Gable - Left",
+          "type": "triangle",
+          "position": [9.1, -1, 4.8039],
+          "size": [0.2, 12, 1.6077],
+          "color": "siding"
+        },
+        {
+          "name": "Garage Gable - Right",
+          "type": "triangle",
+          "position": [17.9, -1, 4.8039],
+          "size": [0.2, 12, 1.6077],
+          "color": "garage"
+        },
+
+        // ── CHIMNEY ───────────────────────────────────────────────────────────
+        {
+          "name": "Chimney Stack",
+          "type": "box",
+          "position": [-6, 4.2, 5.6],
+          "size": [1.0, 1.0, 11.2],
+          "color": "chimney"
+        },
+        {
+          "name": "Chimney Cap",
+          "type": "box",
+          "position": [-6, 4.2, 11.3],
+          "size": [1.3, 1.3, 0.2],
+          "color": "dark_gray"
+        },
+
+        // ── FRONT PORCH ───────────────────────────────────────────────────────
+        {
+          "name": "Porch Deck",
+          "type": "box",
+          "position": [-2.5, -8.5, 0.15],
+          "size": [5, 3, 0.3],
+          "color": "foundation"
+        },
+        {
+          "name": "Porch Step 1",
+          "type": "box",
+          "position": [-2.5, -11.125, 0],
+          "size": [4.5, 0.45, 0.15],
+          "color": "foundation"
+        },
+        {
+          "name": "Porch Step 2",
+          "type": "box",
+          "position": [-2.5, -10.675, 0.1],
+          "size": [4.1, 0.45, 0.15],
+          "color": "foundation"
+        },
+        {
+          "name": "Porch Step 3",
+          "type": "box",
+          "position": [-2.5, -10.225, 0.2],
+          "size": [3.7, 0.45, 0.15],
+          "color": "foundation"
+        },
+        {
+          "name": "Porch Roof",
+          "type": "box",
+          "position": [-2.5, -8.5, 3.4],
+          "size": [5.6, 3.6, 0.18],
+          "rotation": [14, 0, 0],
+          "color": "roof"
+        },
+        {
+          "name": "Porch Column",
+          "type": "box",
+          "position": [-4.5, -9.5, 1.8],
+          "size": [0.2, 0.2, 3.0],
+          "color": "trim"
+        },
+        {
+          "name": "Porch Column",
+          "type": "box",
+          "position": [-3.0, -9.5, 1.8],
+          "size": [0.2, 0.2, 3.0],
+          "color": "trim"
+        },
+        {
+          "name": "Porch Column",
+          "type": "box",
+          "position": [-1.5, -9.5, 1.8],
+          "size": [0.2, 0.2, 3.0],
+          "color": "trim"
+        },
+        {
+          "name": "Porch Column",
+          "type": "box",
+          "position": [0.0, -9.5, 1.8],
+          "size": [0.2, 0.2, 3.0],
+          "color": "trim"
+        },
+        {
+          "name": "Porch Railing Left",
+          "type": "box",
+          "position": [-4.675, -9.8, 0.75],
+          "size": [0.65, 0.05, 0.9],
+          "color": "trim"
+        },
+        {
+          "name": "Porch Railing Right",
+          "type": "box",
+          "position": [-0.325, -9.8, 0.75],
+          "size": [0.65, 0.05, 0.9],
+          "color": "trim"
+        },
+
+        // ── WINDOWS ───────────────────────────────────────────────────────────
+        // Bay Window Left (lx=-5.5, ly=-7, w=2.2, h=1.6, suppressLeft=true)
+        {
+          "name": "Bay Window Left Casing Top",
+          "type": "box",
+          "position": [-5.5, -7.02, 3.35],
+          "size": [2.4, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Bay Window Left Casing Sill",
+          "type": "box",
+          "position": [-5.5, -7.02, 1.65],
+          "size": [2.4, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Bay Window Left Casing Right",
+          "type": "box",
+          "position": [-4.35, -7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        // Bay Window Right (lx=-7.0, ly=-7, w=1.0, h=1.6, suppressRight=true)
+        {
+          "name": "Bay Window Right Casing Top",
+          "type": "box",
+          "position": [-7.0, -7.02, 3.35],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Bay Window Right Casing Sill",
+          "type": "box",
+          "position": [-7.0, -7.02, 1.65],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Bay Window Right Casing Left",
+          "type": "box",
+          "position": [-7.55, -7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        // Front Right Window (lx=3.0, ly=-7, w=1.8, h=1.6)
+        {
+          "name": "Front Right Window Casing Top",
+          "type": "box",
+          "position": [3.0, -7.02, 3.35],
+          "size": [2.0, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Front Right Window Casing Sill",
+          "type": "box",
+          "position": [3.0, -7.02, 1.65],
+          "size": [2.0, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Front Right Window Casing Left",
+          "type": "box",
+          "position": [2.05, -7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        {
+          "name": "Front Right Window Casing Right",
+          "type": "box",
+          "position": [3.95, -7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        // Rear Left Window (lx=-5, ly=7, extDir=+1, w=2.0, h=1.6)
+        {
+          "name": "Rear Left Window Casing Top",
+          "type": "box",
+          "position": [-5, 7.02, 3.35],
+          "size": [2.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Left Window Casing Sill",
+          "type": "box",
+          "position": [-5, 7.02, 1.65],
+          "size": [2.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Left Window Casing Left",
+          "type": "box",
+          "position": [-6.05, 7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Left Window Casing Right",
+          "type": "box",
+          "position": [-3.95, 7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        // Rear Center Window (lx=0, ly=7, extDir=+1, w=2.0, h=1.6)
+        {
+          "name": "Rear Center Window Casing Top",
+          "type": "box",
+          "position": [0, 7.02, 3.35],
+          "size": [2.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Center Window Casing Sill",
+          "type": "box",
+          "position": [0, 7.02, 1.65],
+          "size": [2.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Center Window Casing Left",
+          "type": "box",
+          "position": [-1.05, 7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Center Window Casing Right",
+          "type": "box",
+          "position": [1.05, 7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        // Rear Right Window (lx=5, ly=7, extDir=+1, w=2.0, h=1.6)
+        {
+          "name": "Rear Right Window Casing Top",
+          "type": "box",
+          "position": [5, 7.02, 3.35],
+          "size": [2.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Right Window Casing Sill",
+          "type": "box",
+          "position": [5, 7.02, 1.65],
+          "size": [2.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Right Window Casing Left",
+          "type": "box",
+          "position": [3.95, 7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        {
+          "name": "Rear Right Window Casing Right",
+          "type": "box",
+          "position": [6.05, 7.02, 2.5],
+          "size": [0.1, 0.04, 1.6],
+          "color": "trim"
+        },
+        // Left Side Window 1 (lx=-9, ly=-3, w=1.4, h=1.6)
+        {
+          "name": "Left Side Window 1 Casing Top",
+          "type": "box",
+          "position": [-9.02, -3, 3.35],
+          "size": [0.04, 1.6, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Left Side Window 1 Casing Sill",
+          "type": "box",
+          "position": [-9.02, -3, 1.65],
+          "size": [0.04, 1.6, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Left Side Window 1 Casing Front",
+          "type": "box",
+          "position": [-9.02, -3.75, 2.5],
+          "size": [0.04, 0.1, 1.6],
+          "color": "trim"
+        },
+        {
+          "name": "Left Side Window 1 Casing Rear",
+          "type": "box",
+          "position": [-9.02, -2.25, 2.5],
+          "size": [0.04, 0.1, 1.6],
+          "color": "trim"
+        },
+        // Left Side Window 2 (lx=-9, ly=3, w=1.4, h=1.6)
+        {
+          "name": "Left Side Window 2 Casing Top",
+          "type": "box",
+          "position": [-9.02, 3, 3.35],
+          "size": [0.04, 1.6, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Left Side Window 2 Casing Sill",
+          "type": "box",
+          "position": [-9.02, 3, 1.65],
+          "size": [0.04, 1.6, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Left Side Window 2 Casing Front",
+          "type": "box",
+          "position": [-9.02, 2.25, 2.5],
+          "size": [0.04, 0.1, 1.6],
+          "color": "trim"
+        },
+        {
+          "name": "Left Side Window 2 Casing Rear",
+          "type": "box",
+          "position": [-9.02, 3.75, 2.5],
+          "size": [0.04, 0.1, 1.6],
+          "color": "trim"
+        },
+
+        // ── DOORS ─────────────────────────────────────────────────────────────
+        {
+          "name": "Front Door Casing Top",
+          "type": "box",
+          "position": [-2.5, -7.02, 2.95],
+          "size": [1.2, 0.04, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Front Door Casing Left",
+          "type": "box",
+          "position": [-3.05, -7.02, 1.7],
+          "size": [0.1, 0.04, 2.4],
+          "color": "trim"
+        },
+        {
+          "name": "Front Door Casing Right",
+          "type": "box",
+          "position": [-1.95, -7.02, 1.7],
+          "size": [0.1, 0.04, 2.4],
+          "color": "trim"
+        },
+        {
+          "name": "Garage Door Casing Top",
+          "type": "box",
+          "position": [9.02, -1, 2.95],
+          "size": [0.04, 1.1, 0.1],
+          "color": "trim"
+        },
+        {
+          "name": "Garage Door Casing Left",
+          "type": "box",
+          "position": [9.02, -1.5, 1.7],
+          "size": [0.04, 0.1, 2.4],
+          "color": "trim"
+        },
+        {
+          "name": "Garage Door Casing Right",
+          "type": "box",
+          "position": [9.02, -0.5, 1.7],
+          "size": [0.04, 0.1, 2.4],
+          "color": "trim"
+        },
+
+        // ── INTERIOR WALLS ────────────────────────────────────────────────────
+        {
+          "name": "Interior - Spine Wall Front",
+          "type": "box",
+          "position": [2, -4.125, "WALL_BASE + (FLOOR1_H - 0.25) / 2"],
+          "size": [0.15, 5.25, 3.75],
+          "color": "trim"
+        },
+        {
+          "name": "Interior - Spine Wall Rear",
+          "type": "box",
+          "position": [2, 3.125, "WALL_BASE + (FLOOR1_H - 0.25) / 2"],
+          "size": [0.15, 7.25, 3.75],
+          "color": "trim"
+        },
+        {
+          "name": "Interior - Living-Dining Divider",
+          "type": "box",
+          "position": [-4, -2, "WALL_BASE + (FLOOR1_H - 0.25) / 2"],
+          "size": [4.6, 0.15, 3.75],
+          "color": "trim"
+        },
+        {
+          "name": "Interior - Kitchen Rear",
+          "type": "box",
+          "position": [5, 2, "WALL_BASE + (FLOOR1_H - 0.25) / 2"],
+          "size": [6.6, 0.15, 3.75],
+          "color": "trim"
+        },
+        {
+          "name": "Interior - Master Divider",
+          "type": "box",
+          "position": [-4.5, 4.2, "WALL_BASE + (FLOOR1_H - 0.25) / 2"],
+          "size": [8.6, 0.15, 3.75],
+          "color": "trim"
+        },
+        {
+          "name": "Interior - Bath-Laundry Wall",
+          "type": "box",
+          "position": [5.5, 0, "WALL_BASE + (FLOOR1_H - 0.25) / 2"],
+          "size": [0.15, 5.6, 3.75],
+          "color": "trim"
+        },
+
+        // ── STAIRCASE (L-shaped, expanded) ────────────────────────────────────
+        // Leg 1 (5 steps, climbing +X)
+        {
+          "name": "Stair Step L1-1",
+          "type": "box",
+          "position": [-1.725, -6.15, 0.7],
+          "size": [0.55, 1.3, 0.4],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L1-2",
+          "type": "box",
+          "position": [-1.175, -6.15, 0.9],
+          "size": [0.55, 1.3, 0.8],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L1-3",
+          "type": "box",
+          "position": [-0.625, -6.15, 1.1],
+          "size": [0.55, 1.3, 1.2],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L1-4",
+          "type": "box",
+          "position": [-0.075, -6.15, 1.3],
+          "size": [0.55, 1.3, 1.6],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L1-5",
+          "type": "box",
+          "position": [1.0625, -6.15, 1.5],
+          "size": [1.725, 1.3, 2.0],
+          "color": "foundation"
+        },
+        // Leg 2 (5 steps, climbing +Y)
+        {
+          "name": "Stair Step L2-1",
+          "type": "box",
+          "position": [1.4, -5.225, 1.7],
+          "size": [1.3, 0.55, 2.4],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L2-2",
+          "type": "box",
+          "position": [1.4, -4.675, 1.9],
+          "size": [1.3, 0.55, 2.8],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L2-3",
+          "type": "box",
+          "position": [1.4, -4.125, 2.1],
+          "size": [1.3, 0.55, 3.2],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L2-4",
+          "type": "box",
+          "position": [1.4, -3.575, 2.3],
+          "size": [1.3, 0.55, 3.6],
+          "color": "foundation"
+        },
+        {
+          "name": "Stair Step L2-5",
+          "type": "box",
+          "position": [1.4, -3.025, 2.5],
+          "size": [1.3, 0.55, 4.0],
+          "color": "foundation"
+        },
+
+        // ── CEILING LIGHTS ────────────────────────────────────────────────────
+        {
+          "name": "Light - Living Room",
+          "type": "circle",
+          "position": [-5.0, -4.5, 4.475],
+          "size": [0.4, 0.4, 0.05],
+          "light": true,
+          "glow": 0.1,
+          "color": "light_warm"
+        },
+        {
+          "name": "Light - Dining Room",
+          "type": "circle",
+          "position": [-5.0, 1.5, 4.475],
+          "size": [0.4, 0.4, 0.05],
+          "light": true,
+          "glow": 0.1,
+          "color": "light_warm"
+        },
+        {
+          "name": "Light - Kitchen",
+          "type": "circle",
+          "position": [5.5, 4.5, 4.475],
+          "size": [0.4, 0.4, 0.05],
+          "light": true,
+          "glow": 0.1,
+          "color": "light_warm"
+        },
+        {
+          "name": "Light - Entry",
+          "type": "circle",
+          "position": [3.75, -4.0, 4.475],
+          "size": [0.4, 0.4, 0.05],
+          "light": true,
+          "glow": 0.1,
+          "color": "light_warm"
+        },
+        {
+          "name": "Light - Upstairs",
+          "type": "circle",
+          "position": [0, 0, 9.525],
+          "size": [0.4, 0.4, 0.05],
+          "light": true,
+          "glow": 0.1,
+          "color": "light_warm"
+        },
+
+        // ── SIGN ──────────────────────────────────────────────────────────────
+        {
+          "name": "Sign - Vibe Coded House",
+          "type": "box",
+          "position": [6.45, -7.02, "WALL_BASE + FLOOR1_H * 0.55"],
+          "size": [4.5, 0.04, 2.0],
+          "color": "white",
+          "light": true,
+          "glow": 0.08,
+          "texture": "87fa5aa4-17dd-7e9a-e5e0-6ba9b3f2d26f"
+        }
+
+      ]
+    }
+  ]
+}
